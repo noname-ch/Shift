@@ -415,6 +415,7 @@ const W3 = (() => {
     st.slide = 0;
     if (Math.abs(aLat) > aMax) { st.slide = Math.abs(aLat) - aMax; yaw *= aMax / Math.abs(aLat); scrub += st.slide * .45; }
     S.extraF = C.mass * (scrub + (st.off ? 1.2 : 0));
+    S.fx.slide = st.slide; S.fx.off = st.off ? 1 : 0;
     st.h += yaw * dt;
     st.x += Math.cos(st.h) * v * dt; st.z -= Math.sin(st.h) * v * dt;
     st.i = nearest(st.x, st.z, st.i);
@@ -432,9 +433,11 @@ const W3 = (() => {
         if (tl > .5) { const d = v >= 0 ? 1 : -1; st.h = Math.atan2(-tz * d, tx * d); }
         S.v = Math.sign(v) * tl * .85;
         st.shake = Math.min(1, vn / 10);
+        S.fx.hit = Math.max(S.fx.hit, vn);
         if (vn > 7) toast('Leitplanke!');
       }
     }
+    S.fx.wall = Math.abs(st.lat) > lim - .25 && Math.abs(S.v) > 2 ? 1 : 0;   // an der Planke entlang: Schleifgeräusch
     // Karosserie: Wanken in Kurven, Nicken beim Bremsen/Beschleunigen
     st.latA += (v * yaw - st.latA) * Math.min(1, dt * 6);
     st.acc += ((S.v - st.lastV) / Math.max(dt, 1e-3) - st.acc) * Math.min(1, dt * 5); st.lastV = S.v;

@@ -199,7 +199,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button class="btn" id="gearReset" style="width:100%">Übersetzungen zurücksetzen</button>
 
     <h2>Sound</h2>
-    <div class="field"><label for="src">Motorsound</label><select id="src"><option value="synth">Physik-Synthese (empfohlen)</option><option value="sample">Aufnahme-Loops (experimentell)</option></select></div>
+    <div class="field"><label for="src">Motorsound</label><select id="src"><option value="synth">Physik-Synthese (empfohlen)</option><option value="sample">Aufnahme-Loops (experimentell)</option><option value="eleven">KI-Aufnahmen (ElevenLabs)</option></select></div>
     <div class="field"><label for="view">Hören von</label><select id="view"><option value="aussen">Aussen (hinten)</option><option value="innen">Innenraum</option></select></div>
     <div class="field"><label for="vol">Lautstärke</label><div class="rw"><input type="range" id="vol" min="0" max="1" step="0.01"><output></output></div></div>
     <div class="field"><label for="mixEx">Auspuff</label><div class="rw"><input type="range" id="mixEx" min="0" max="2" step="0.05"><output></output></div></div>
@@ -222,6 +222,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <script src="assets.js"></script>
 <script src="illus.js"></script>
 <script src="three.min.js"></script>
+<script src="elsounds.js"></script>
 <script src="world3d.js"></script>
 <script>
 // Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
@@ -1032,7 +1033,7 @@ const S = {
   throttle:0, brake:0, clutch:0, clutchEng:0, thrEff:0, map:0, fuelCut:false, Tc:0,
   dmg:{engine:0, clutch:0, gear:0, turbo:0}, temp:70, blown:false, knock:0, slipN:0, smoke:[], blowT:0, warn:{}, revWarnT:0,
   running:false, starting:0, grace:0, flare:0, cut:false, boost:0, bovArmed:false, flame:0,
-  kbd:{gas:false, brake:false, clutch:false, left:false, right:false}, extraF:0, mouse:{gas:0, brake:0, clutch:0}, autoT:0, dnT:[], pumpAt:0,
+  kbd:{gas:false, brake:false, clutch:false, left:false, right:false}, extraF:0, fx:{slide:0, off:0, wall:0, hit:0}, mouse:{gas:0, brake:0, clutch:0}, autoT:0, dnT:[], pumpAt:0,
 };
 const eng = () => ENGINES[S.cfg.engine];
 // Wie laut die Knaller je nach Auspuff sind (Serie gedämpft, offene Rennauspuffe laut)
@@ -1362,6 +1363,7 @@ const AU = {
     dry.connect(comp); this.wet.connect(comp); comp.connect(ctx.destination);
     this.dry = dry; this.comp = comp;
     SMP.attach(ctx, dry, this.conv);
+    FXS.attach(ctx, comp, this.conv);
     this.sendCfg(); this.sendMix(); SMP.load();
   },
   // Raumklang: draussen frühe Reflexionen + Hallfahne, innen kurze dichte Kabine
@@ -1401,7 +1403,7 @@ const AU = {
   },
   update() {
     if (!this.port) return;
-    SMP.update();
+    SMP.update(); FXS.update();
     this.send({type: 'p', rpm: S.we * RPM, map: S.map, thr: S.thrEff, spool: S.boost, running: S.running, starting: S.starting > 0,
       cut: S.cut, fuelCut: S.fuelCut, speed: Math.abs(S.v), final: gbox().final, wr: WR, torque: S.Tc / eng().torque,
       dEng: S.dmg.engine, dTurbo: S.dmg.turbo, dGear: S.dmg.gear, gear: S.gear, clutch: S.clutchEng, slip: S.slipN * (.3 + .7 * S.dmg.clutch), knock: S.knock});
@@ -1417,12 +1419,64 @@ const AU = {
 };
 
 
+// ---------------- Fahrgeräusche der 3D-Strecke (ElevenLabs-Aufnahmen) ----------------
+// Reifenquietschen beim Rutschen, Gras/Kies neben der Strecke, Schleifen an der Leitplanke, Fahrtwind; Aufprall als Einzelklang.
+// Werte kommen aus world3d.js über S.fx (slide m/s², off, wall, hit = Aufprallgeschwindigkeit m/s).
+const FXS = {
+  ctx: null, out: null, loops: {}, crash: [], lastHit: 0,
+  attach(ctx, dest, conv) {
+    if (typeof EL_FX === 'undefined') return;
+    this.ctx = ctx; this.out = ctx.createGain(); this.out.connect(dest);
+    const rv = ctx.createGain(); rv.gain.value = .25; this.out.connect(rv); rv.connect(conv);
+    const loop = async (name, id, rate) => {
+      const buf = await SMP.decode(id); if (!buf) return;
+      const pad = EL_FX.pad, src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf; src.loop = true; src.loopStart = pad; src.loopEnd = buf.duration - pad; src.playbackRate.value = rate;
+      g.gain.value = 0; src.connect(g); g.connect(this.out); src.start(ctx.currentTime + .02, pad + Math.random() * (buf.duration - 2 * pad));
+      (this.loops[name] = this.loops[name] || []).push({src, g, rate});
+    };
+    EL_FX.squeal.forEach((id, i) => loop('squeal', id, i ? 1.06 : 1));   // zwei Aufnahmen leicht verstimmt: dichter, keine hörbare Wiederholung
+    loop('grass', EL_FX.grass, 1); loop('scrape', EL_FX.scrape, 1); loop('wind', EL_FX.wind, 1);
+    Promise.all(EL_FX.crash.map(id => SMP.decode(id))).then(b => { this.crash = b.filter(Boolean); }).catch(() => {});
+  },
+  set(name, gain, rate) {
+    const t = this.ctx.currentTime;
+    for (const L of this.loops[name] || []) {
+      L.g.gain.setTargetAtTime(gain, t, .06);
+      if (rate) L.src.playbackRate.setTargetAtTime(L.rate * rate, t, .1);
+    }
+  },
+  update() {
+    if (!this.ctx) return;
+    const F = S.fx, v = Math.abs(S.v), innen = S.cfg.view === 'innen', road = S.cfg.mixRoad;
+    const on3d = typeof W3 !== 'undefined' && W3 && S.cfg.scene3d === '3d';   // nur auf der 3D-Strecke
+    this.out.gain.setTargetAtTime(on3d ? S.cfg.vol * road * (innen ? .6 : 1) : 0, this.ctx.currentTime, .1);
+    // Quietschen setzt am Haftungslimit ein, wird mit dem Rutschen lauter und etwas höher
+    const sq = v > 4 ? Math.min(1, F.slide / 6) : 0;
+    this.set('squeal', .5 * sq * (F.off ? .3 : 1), .9 + .25 * sq);
+    this.set('grass', F.off ? .9 * Math.min(1, v / 25) : 0, .7 + Math.min(.6, v / 60));
+    this.set('scrape', F.wall ? Math.min(1.2, .3 + v / 30) : 0, .85 + Math.min(.4, v / 80));
+    this.set('wind', .55 * Math.min(1, (v / 70) ** 2), .8 + Math.min(.5, v / 120));
+    if (F.hit > 3 && this.crash.length && this.ctx.currentTime - this.lastHit > .35) {
+      const src = this.ctx.createBufferSource(), g = this.ctx.createGain();
+      src.buffer = this.crash[Math.random() * this.crash.length | 0]; src.playbackRate.value = .9 + Math.random() * .2;
+      g.gain.value = Math.min(1.6, F.hit / 12); src.connect(g); g.connect(this.out); src.start();
+      this.lastHit = this.ctx.currentTime;
+    }
+    F.hit = 0;
+  },
+};
+
 // ---------------- Echte Aufnahmen: Loop-Überblendung ----------------
 // Pro Motor mehrere kurze, nahtlose Loops aus echten Aufnahmen bei verschiedenen Drehzahlen (assets.js: SAMPLES / SND).
 // Jeder Loop läuft dauerhaft, wird per playbackRate auf die aktuelle Drehzahl gezogen und nur die zwei nächstgelegenen sind hörbar.
 const SMP = {
   ctx: null, bus: null, loadLP: null, cab: null, buffers: {}, layers: [], key: null, popBufs: [], lastPop: 0, ready: false,
-  active() { return S.cfg.src === 'sample' && typeof SAMPLES !== 'undefined' && !!SAMPLES[S.cfg.engine]; },
+  bank() {
+    if (S.cfg.src === 'eleven') return typeof EL_BANKS !== 'undefined' && EL_ENGINES[S.cfg.engine] ? {loops: EL_BANKS[EL_ENGINES[S.cfg.engine]]} : null;
+    return S.cfg.src === 'sample' && typeof SAMPLES !== 'undefined' ? SAMPLES[S.cfg.engine] || null : null;
+  },
+  active() { return !!this.bank(); },
   attach(ctx, dry, conv) {
     this.ctx = ctx;
     this.bus = ctx.createGain(); this.loadLP = ctx.createBiquadFilter(); this.loadLP.type = 'lowpass'; this.loadLP.frequency.value = 12000; this.loadLP.Q.value = .5;
@@ -1443,7 +1497,7 @@ const SMP = {
   },
   async decode(id) {
     if (this.buffers[id]) return this.buffers[id];
-    const b64 = SND[id]; if (!b64) return null;
+    const b64 = (typeof EL_SND !== 'undefined' && EL_SND[id]) || (typeof SND !== 'undefined' && SND[id]); if (!b64) return null;
     const bin = atob(b64.slice(b64.indexOf(',') + 1)), arr = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     const buf = await this.ctx.decodeAudioData(arr.buffer);
@@ -1451,18 +1505,18 @@ const SMP = {
   },
   async load() {
     if (!this.ctx) return;
-    const key = this.active() ? S.cfg.engine : null;
+    const key = this.active() ? S.cfg.src + ':' + S.cfg.engine : null;
     if (key === this.key) return;
     this.stop(); this.key = key; this.ready = false;
     if (!key) return;
-    const def = SAMPLES[key];
+    const def = this.bank();
     const bufs = await Promise.all(def.loops.map(l => this.decode(l.id)));
     if (this.key !== key) return;
     const t = this.ctx.currentTime;
     this.layers = def.loops.map((l, i) => {
-      const src = this.ctx.createBufferSource(); src.buffer = bufs[i]; src.loop = true; src.loopStart = 0; src.loopEnd = bufs[i].duration;
+      const pad = l.pad || 0, src = this.ctx.createBufferSource(); src.buffer = bufs[i]; src.loop = true; src.loopStart = pad; src.loopEnd = bufs[i].duration - pad;
       const g = this.ctx.createGain(); g.gain.value = 0;
-      src.connect(g); g.connect(this.bus); src.start(t + .01, Math.random() * bufs[i].duration);
+      src.connect(g); g.connect(this.bus); src.start(t + .01, pad + Math.random() * (bufs[i].duration - 2 * pad));
       return {src, g, rpm: l.rpm, gain: l.gain || 1};
     });
     this.layers.sort((a, b) => a.rpm - b.rpm);
@@ -1487,7 +1541,6 @@ const SMP = {
     if (!this.ready || !this.layers.length) return;
     const t = this.ctx.currentTime, tc = .03;
     const rpm = S.we * RPM, on = S.running && !S.starting;
-    const def = SAMPLES[this.key], idle = eng().idle;
     // Motor aus: Loops stumm, ausser beim Anlassen (Starter-Drehzahl langsam hochziehen)
     const spin = S.starting > 0 ? .35 : on ? 1 : (rpm > 60 ? .5 : 0);
     const lr = Math.log(Math.max(rpm, 200));
@@ -2154,7 +2207,8 @@ function boot() {
     const c = document.getElementById('credits'), n = typeof SAMPLES !== 'undefined' ? Object.keys(SAMPLES).length : 0;
     c.textContent = (typeof CAR_IMG !== 'undefined' ? `Fotos: Wikimedia Commons (Creative Commons, ${Object.keys(CAR_IMG).length} Autos, Cartoon-Filter). ` : '') +
       (n ? `Motorsound: echte Aufnahmen von freesound.org (Creative Commons) für ${n} Motoren, Fehlzündungen ebenfalls echte Aufnahmen. Details in assets.js.` : '') +
-      (typeof CLACKS !== 'undefined' ? ' Schaltknack: echte Aufnahme eines Porsche 997 GT3 (Wikimedia Commons, CC BY-SA 3.0).' : '');
+      (typeof CLACKS !== 'undefined' ? ' Schaltknack: echte Aufnahme eines Porsche 997 GT3 (Wikimedia Commons, CC BY-SA 3.0).' : '') +
+      (typeof EL_FX !== 'undefined' ? ' 3D-Fahrgeräusche (Reifen, Gras, Leitplanke, Wind) und KI-Motorsound: ElevenLabs Sound Effects (KI-generiert).' : '');
   }
 
   document.getElementById('startBtn').addEventListener('click', e => { toggleEngine(); e.currentTarget.blur(); });
@@ -2247,7 +2301,7 @@ function boot() {
     if (!SQ.drag) SQ.y *= Math.exp(-dt * 12);
     PAD.l = Math.max(0, PAD.l - dt * 4); PAD.r = Math.max(0, PAD.r - dt * 4);
 
-    if (W3 && S.cfg.scene3d === '3d') W3.frame(dt); else { S.extraF = 0; drawCar(dt, t); }
+    if (W3 && S.cfg.scene3d === '3d') W3.frame(dt); else { S.extraF = 0; S.fx.slide = S.fx.off = S.fx.wall = 0; drawCar(dt, t); }
     drawDash(t); drawShifter(); drawDamage();
     for (const el of pedals) {
       const v = el.dataset.p === 'gas' ? S.throttle : el.dataset.p === 'brake' ? S.brake : (GB.paddle ? 1 - S.clutchEng : S.clutch);
