@@ -1,0 +1,2199 @@
+<title>Schalt-Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root{color-scheme:dark;--ok:#6fbf73;--crit:#e5484d;--bg:#0c0e10;--panel:#14171a;--panel2:#1b1f23;--line:#2a2f34;--text:#ebe8e2;--muted:#8f9296;--accent:#f5a524;--accent-ink:#1a1204;--accent2:#7fc4e8;--display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-block:16px;padding-inline:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;margin-bottom:14px}
+h1{margin:0;font:800 28px/1 var(--display);letter-spacing:.08em;text-wrap:balance}
+h1 span{color:var(--accent)}
+#specs{color:var(--muted);font-variant-numeric:tabular-nums}
+.spacer{flex:1}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+.btn:hover{border-color:#454c57}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn:focus-visible,select:focus-visible,input:focus-visible,#shift:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:16px;align-items:start}
+@media (max-width:1050px){.layout{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+canvas{display:block;width:100%}
+#scene{height:190px}
+#dash{height:260px;border-top:1px solid var(--line)}
+.cockpit{display:grid;grid-template-columns:auto 250px minmax(0,1fr);gap:16px;padding:16px;border-top:1px solid var(--line)}
+@media (max-width:820px){.cockpit{grid-template-columns:1fr}}
+.pedals{display:flex;gap:10px;justify-content:center}
+.pedal{width:62px;height:230px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;position:relative;cursor:pointer;touch-action:none;user-select:none;overflow:hidden}
+.pedal .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,var(--c),transparent)}
+.pedal .lbl{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:11px;color:var(--muted);line-height:1.5}
+.pedal .pct{position:absolute;top:8px;left:0;right:0;text-align:center;font:700 18px/1 var(--display);font-variant-numeric:tabular-nums}
+.pedal.off{opacity:.3;cursor:default}
+.shiftbox{display:flex;flex-direction:column;gap:6px}
+#shift{height:230px;touch-action:none;cursor:grab;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+#shiftHint{color:var(--muted);font-size:12px;text-align:center}
+.help{color:var(--muted);font-size:13px}
+.help table{border-collapse:collapse}
+.help td{padding:3px 10px 3px 0;vertical-align:top}
+kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:12px ui-monospace,monospace;color:var(--text);white-space:nowrap}
+.tune{padding:14px 16px}
+.tune h2{font:600 14px/1.2 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);margin:18px 0 8px}
+.tune h2:first-child{margin-top:0}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.plabel{flex-basis:100%;font:600 12px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.presets .btn{padding:5px 10px;font-size:12.5px}
+.field{display:grid;grid-template-columns:118px minmax(0,1fr);align-items:center;gap:8px;margin:6px 0}
+.field label{color:var(--muted);font-size:13px}
+select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit}
+select:disabled,input:disabled{opacity:.4}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.rw{display:flex;gap:8px;align-items:center}
+.rw output{min-width:54px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}
+.dmg{display:grid;gap:7px}
+.drow{display:grid;grid-template-columns:92px minmax(0,1fr) 58px;gap:8px;align-items:center;font-size:13px}
+.drow span{color:var(--muted)}
+.drow b{font:600 15px/1 var(--display);text-align:right;font-variant-numeric:tabular-nums}
+.meter{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;width:100%;background:var(--ok);transition:width .2s}
+.drow.warn .meter i{background:var(--accent)}.drow.warn b{color:var(--accent)}
+.drow.crit .meter i{background:var(--crit)}.drow.crit b{color:var(--crit)}
+.drow.na{opacity:.35}
+#repairBtn{margin-top:10px;width:100%}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0;background:var(--c)}
+.sw[aria-pressed="true"]{border-color:var(--text);box-shadow:inset 0 0 0 2px var(--bg)}
+#colorPick{width:34px;height:28px;background:none;border:1px solid var(--line);border-radius:6px;padding:0;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000d;border:1px solid var(--line);padding:10px 18px;border-radius:10px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+#overlay{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:8;padding:16px}
+#overlay .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px;max-width:440px;text-align:center}
+#overlay h2{margin:0 0 8px}
+#overlay p{color:var(--muted)}
+</style>
+<header>
+  <h1>SCHALT<span>·</span>SIMULATOR</h1>
+  <div id="specs"></div>
+  <div class="spacer"></div>
+  <button class="btn primary" id="startBtn">Motor starten [Z]</button>
+</header>
+
+<div class="layout">
+  <div class="card">
+    <canvas id="scene"></canvas>
+    <canvas id="dash"></canvas>
+    <div class="cockpit">
+      <div class="pedals">
+        <div class="pedal" data-p="clutch" style="--c:#3b82f6"><div class="fill"></div><div class="pct">0</div><div class="lbl">Kupplung<br><kbd>Leer</kbd></div></div>
+        <div class="pedal" data-p="brake" style="--c:#ef4444"><div class="fill"></div><div class="pct">0</div><div class="lbl">Bremse<br><kbd>S</kbd></div></div>
+        <div class="pedal" data-p="gas" style="--c:#22c55e"><div class="fill"></div><div class="pct">0</div><div class="lbl">Gas<br><kbd>W</kbd></div></div>
+      </div>
+      <div class="shiftbox">
+        <canvas id="shift"></canvas>
+        <div id="shiftHint"></div>
+      </div>
+      <div class="help">
+        <table>
+          <tr><td><kbd>Z</kbd></td><td>Motor starten / aus</td></tr>
+          <tr><td><kbd>W</kbd> <kbd>↑</kbd></td><td>Gas</td></tr>
+          <tr><td><kbd>S</kbd> <kbd>↓</kbd></td><td>Bremse</td></tr>
+          <tr><td><kbd>Leertaste</kbd></td><td>Kupplung (langsam loslassen!)</td></tr>
+          <tr><td><kbd>1</kbd>–<kbd>7</kbd> <kbd>R</kbd> <kbd>N</kbd></td><td>Gang direkt (H-Schaltung)</td></tr>
+          <tr><td><kbd>E</kbd> / <kbd>Q</kbd></td><td>Hoch- / Runterschalten</td></tr>
+          <tr><td><kbd>V</kbd></td><td>Innen- / Aussengeräusch</td></tr>
+          <tr><td>Achtung</td><td>Überdrehen, langes Hängen im Begrenzer, schleifende Kupplung, Kratzen beim Schalten und zu viel Ladedruck machen das Auto kaputt.</td></tr>
+        </table>
+        <p>Pedale gehen auch mit der Maus: je höher du klickst, desto stärker. Den Schaltknauf kannst du mit der Maus durch die Kulisse ziehen.</p>
+        <p id="credits" style="font-size:11px;opacity:.7"></p>
+      </div>
+    </div>
+  </div>
+
+  <aside class="card tune">
+    <h2>Zustand</h2>
+    <div class="dmg" id="dmg">
+      <div class="drow" data-k="engine"><span>Motor</span><div class="meter"><i></i></div><b>100 %</b></div>
+      <div class="drow" data-k="clutch"><span>Kupplung</span><div class="meter"><i></i></div><b>100 %</b></div>
+      <div class="drow" data-k="gear"><span>Getriebe</span><div class="meter"><i></i></div><b>100 %</b></div>
+      <div class="drow" data-k="turbo"><span>Turbo</span><div class="meter"><i></i></div><b>100 %</b></div>
+      <div class="drow" data-k="temp"><span>Kühlwasser</span><div class="meter"><i></i></div><b>70 °C</b></div>
+    </div>
+    <button class="btn" id="repairBtn">In die Werkstatt: alles reparieren</button>
+
+    <h2>Fahrzeug</h2>
+    <div class="field"><label for="car">Auto</label><select id="car"></select></div>
+    <div class="field"><label for="dashStyle">Tacho</label><select id="dashStyle"><option value="analog">Analog-Instrumente</option><option value="gt3">GT3-Display</option></select></div>
+    <div class="field"><label for="look">Darstellung</label><select id="look"><option value="grafik">Illustration (GT3-Poster)</option><option value="foto">Foto (Cartoon-Stil)</option><option value="vektor">Zeichnung</option></select></div>
+    <div class="field"><label for="colorPick">Lackfarbe</label><div class="swatches" id="swatches"><input type="color" id="colorPick" aria-label="Eigene Farbe"></div></div>
+
+    <h2>Vorlagen</h2>
+    <div class="presets" id="presets"></div>
+
+    <h2>Motor</h2>
+    <div class="field"><label for="engine">Motor</label><select id="engine"></select></div>
+
+    <h2>Auspuff &amp; Ansaugung</h2>
+    <div class="field"><label for="exhaust">Auspuff</label><select id="exhaust"></select></div>
+    <div class="field"><label for="pops">Pops &amp; Bangs</label><div class="rw"><input type="range" id="pops" min="0" max="2" step="0.1"><output></output></div></div>
+    <div class="field"><label for="mixBang">Knall-Lautstärke</label><div class="rw"><input type="range" id="mixBang" min="0" max="3" step="0.05"><output></output></div></div>
+    <div class="field"><label for="intake">Ansaugung</label><select id="intake"></select></div>
+
+    <h2>Turbo</h2>
+    <div class="field"><label for="turbo">Aufladung</label><select id="turbo"></select></div>
+    <div class="field"><label for="boostMax">Ladedruck</label><div class="rw"><input type="range" id="boostMax" min="0.3" max="2.5" step="0.1"><output></output></div></div>
+    <div class="field"><label for="bov">Blow-Off-Ventil</label><select id="bov"></select></div>
+
+    <h2>Getriebe &amp; Schaltknüppel</h2>
+    <div class="field"><label for="shiftMode">Schaltung</label><select id="shiftMode"><option value="manuell">Manuell</option><option value="auto">Automatik</option></select></div>
+    <div class="field"><label for="gearbox">Getriebe</label><select id="gearbox"></select></div>
+    <div class="field"><label for="lever">Schalthebel</label><select id="lever"></select></div>
+    <div class="field"><label for="knob">Schaltknauf</label><select id="knob"></select></div>
+
+    <h2>Getriebe-Customizer</h2>
+    <div class="field"><label for="finalDrive">Achsantrieb</label><div class="rw"><input type="range" id="finalDrive" min="2.5" max="5.5" step="0.05"><output></output></div></div>
+    <div class="field"><label for="wheelCirc">Radumfang</label><div class="rw"><input type="range" id="wheelCirc" min="1.5" max="2.7" step="0.01"><output></output></div></div>
+    <div id="gearRatios"></div>
+    <p id="gearInfo" class="help" style="margin:6px 0"></p>
+    <button class="btn" id="gearReset" style="width:100%">Übersetzungen zurücksetzen</button>
+
+    <h2>Sound</h2>
+    <div class="field"><label for="src">Motorsound</label><select id="src"><option value="synth">Physik-Synthese (empfohlen)</option><option value="sample">Aufnahme-Loops (experimentell)</option></select></div>
+    <div class="field"><label for="view">Hören von</label><select id="view"><option value="aussen">Aussen (hinten)</option><option value="innen">Innenraum</option></select></div>
+    <div class="field"><label for="vol">Lautstärke</label><div class="rw"><input type="range" id="vol" min="0" max="1" step="0.01"><output></output></div></div>
+    <div class="field"><label for="mixEx">Auspuff</label><div class="rw"><input type="range" id="mixEx" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixIn">Ansaugung</label><div class="rw"><input type="range" id="mixIn" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixTu">Turbo</label><div class="rw"><input type="range" id="mixTu" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixMech">Mechanik</label><div class="rw"><input type="range" id="mixMech" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixGear">Getriebeheulen</label><div class="rw"><input type="range" id="mixGear" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixShift">Schaltklack</label><div class="rw"><input type="range" id="mixShift" min="0" max="2" step="0.05"><output></output></div></div>
+    <div class="field"><label for="mixRoad">Reifen &amp; Wind</label><div class="rw"><input type="range" id="mixRoad" min="0" max="2" step="0.05"><output></output></div></div>
+  </aside>
+</div>
+
+<div id="overlay"><div class="box">
+  <h2>Schalt-Simulator</h2>
+  <p>Kupplung treten, Gang rein, Gas geben und Kupplung langsam kommen lassen. Rechts kannst du Motor, Auspuff, Ansaugung, Turbo und Schaltknüppel umbauen.</p>
+  <button class="btn primary" id="overlayBtn">Ton an &amp; Motor starten</button>
+</div></div>
+<div id="toast"></div>
+
+<script src="assets.js"></script>
+<script src="illus.js"></script>
+<script>
+// Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
+window.sampleRate = 48000;
+window.AudioWorkletProcessor = class { constructor() { this.port = {postMessage: m => window.__dspOut && window.__dspOut(m), onmessage: null}; } };
+window.registerProcessor = (name, cls) => { window.__EngineProc = cls; };
+</script>
+<script id="dsp">{
+// ===== Motor-Klangsynthese: physikalisches Wellenleiter-Modell (läuft im AudioWorklet) =====
+const TAU = Math.PI * 2, SR = sampleRate, C_EX = 540, C_AIR = 350;
+let seed = 987654321;
+const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+const nz = () => rnd() * 2 - 1;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Pegel und Klangfarbe per Spektrum-/Wellenform-Vergleich mit echten Motoraufnahmen kalibriert
+const LV = {ex:13, in:1, blk:.035, tick:.35, jet:1, whistle:.09, whoosh:.1, sc:.1, bov:1, gear:.1, tyre:.25, wind:.25, hiss:1, starter:.6, click:.45, grind:1};
+
+class Delay {
+  constructor(n) { this.n = Math.max(1, Math.round(n)); this.b = new Float32Array(this.n); this.i = 0; }
+  peek() { return this.b[this.i]; }
+  push(x) { this.b[this.i] = x; if (++this.i >= this.n) this.i = 0; }
+}
+class LP1 {
+  constructor(f) { this.y = 0; this.a = 1 - Math.exp(-TAU * Math.min(f, SR * .45) / SR); }
+  p(x) { return this.y += this.a * (x - this.y); }
+}
+class DC {
+  constructor(f) { this.r = Math.exp(-TAU * f / SR); this.x1 = 0; this.y1 = 0; }
+  p(x) { const y = x - this.x1 + this.r * this.y1; this.x1 = x; this.y1 = y; return y; }
+}
+class BQ {
+  constructor() { this.b0 = 1; this.b1 = this.b2 = this.a1 = this.a2 = this.z1 = this.z2 = 0; }
+  set(type, f, q) {
+    f = Math.min(f, SR * .45);
+    const w = TAU * f / SR, cs = Math.cos(w), al = Math.sin(w) / (2 * q), a0 = 1 + al;
+    let b0, b1, b2;
+    if (type === 'lp') { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = b0; }
+    else if (type === 'hp') { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; }
+    else { b0 = al; b1 = 0; b2 = -al; }
+    this.b0 = b0 / a0; this.b1 = b1 / a0; this.b2 = b2 / a0; this.a1 = -2 * cs / a0; this.a2 = (1 - al) / a0;
+    return this;
+  }
+  p(x) { const y = this.b0 * x + this.z1; this.z1 = this.b1 * x - this.a1 * y + this.z2; this.z2 = this.b2 * x - this.a2 * y; return y; }
+}
+// gedämpfter Resonator (Metall, Motorblock)
+class Mode {
+  constructor(f, decay, g) {
+    const r = Math.exp(-1 / (decay * SR)), w = TAU * f / SR;
+    this.c1 = 2 * r * Math.cos(w); this.c2 = -r * r; this.g = g * Math.sin(w); this.y1 = this.y2 = 0;
+  }
+  p(x) { const y = this.c1 * this.y1 + this.c2 * this.y2 + this.g * x; this.y2 = this.y1; this.y1 = y; return y; }
+}
+// Rohr als bidirektionaler Wellenleiter mit Reflexionen an beiden Enden
+class Pipe {
+  constructor(m, c, rs, re, lossHz, endHz) {
+    const n = m / c * SR;
+    this.f = new Delay(n); this.b = new Delay(n); this.rs = rs; this.re = re;
+    this.loss = new LP1(lossHz); this.end = new LP1(endHz);
+  }
+  p(x) {
+    const arr = this.loss.p(this.f.peek()), bo = this.b.peek(), refl = this.re * this.end.p(arr);
+    this.f.push(x + this.rs * bo); this.b.push(refl);
+    return arr + refl;
+  }
+}
+// Abgasstoss beim Öffnen des Auslassventils
+class Puff {
+  constructor() { this.on = false; }
+  start(A, ta, tb, stroke, turb) {
+    this.on = true; this.A = A; this.a = 1; this.b = 1;
+    this.ea = Math.exp(-1 / (ta * SR)); this.eb = Math.exp(-1 / (tb * SR));
+    this.n = 0; this.len = Math.max(8, stroke * SR | 0); this.w = Math.PI / this.len; this.turb = turb;
+  }
+  p() {
+    if (!this.on) return 0;
+    const n = this.n++;
+    if (n >= this.len) this.on = false;
+    this.a *= this.ea; this.b *= this.eb;
+    return this.A * ((1 - this.a) * this.b * (1 + this.turb * nz()) + .12 * Math.sin(this.w * n));
+  }
+}
+// Ansaugtakt: Unterdruck + Druckschlag beim Schliessen des Einlassventils
+class Suck {
+  constructor() { this.on = false; this.k = 0; this.hB = 0; this.ek = Math.exp(-1 / (.0018 * SR)); }
+  start(B, stroke) { this.on = true; this.B = B; this.n = 0; this.len = Math.max(8, stroke * SR | 0); this.w = Math.PI / this.len; }
+  p() {
+    let y = 0;
+    if (this.k > 1e-4) { y = this.k * this.hB; this.k *= this.ek; }
+    if (this.on) {
+      const n = this.n++;
+      y -= this.B * Math.sin(this.w * n) * (1 + .15 * nz());
+      if (n >= this.len) { this.on = false; this.k = 1; this.hB = this.B * .9; }
+    }
+    return y;
+  }
+}
+
+// ---- Klang-Parameter ----
+const alt = (n, step, runner) => ({
+  cyl: Array.from({length: n}, (_, i) => [i * step, i % 2]),
+  runners: Array.from({length: n}, (_, i) => runner * (1 + .04 * Math.sin(i * 2.3))),
+});
+const ENG_DEF = {gain:1, cycle:720, evo:130, ivo:350, exhDeg:180, intDeg:180, ta:.00025, turb:.4, knock:.5, block:1, tick:1, dual:false, bd:.1, front:2.3, misfire:0};
+const ENG = {
+  r3:     {cyl:[[0,0],[240,0],[480,0]], runners:[.55,.6,.58], front:2.2, bd:.11, turb:.5, knock:.6, block:1.25},
+  r4:     {cyl:[[0,0],[180,0],[360,0],[540,0]], runners:[.62,.64,.61,.65], front:2.4, bd:.1},
+  boxer:  {cyl:[[0,0],[180,0],[360,0],[540,0]], runners:[.42,.98,.47,1.03], front:2.3, bd:.11, turb:.45, block:.95, tick:.6},
+  r6:     {cyl:[0,120,240,360,480,600].map(a => [a, 0]), runners:[.7,.72,.69,.71,.73,.7], front:2.6, bd:.085, turb:.35, knock:.45, block:.95},
+  v6:     {cyl:[[0,0],[120,1],[240,0],[360,1],[480,0],[600,1]], runners:[.5,.52,.54,.5,.53,.51], front:2.2, dual:true, block:.95},
+  v8x:    {cyl:[[0,0],[90,1],[180,1],[270,0],[360,1],[450,0],[540,0],[630,1]], runners:[.55,.62,.58,.66,.6,.57,.64,.59], front:2.6, bd:.12, turb:.25, knock:.55, block:.8, dual:true, tick:.6},
+  v8f:    Object.assign(alt(8, 90, .72), {front:1.9, bd:.075, turb:.35, block:.9, dual:true}),
+  v10:    Object.assign(alt(10, 72, .6), {front:2, bd:.075, turb:.35, block:.9, dual:true}),
+  v12:    Object.assign(alt(12, 60, .65), {front:2.1, bd:.07, turb:.3, block:.95, dual:true}),
+  wankel: {cycle:360, cyl:[[0,0],[180,0]], runners:[.3,.32], front:1.8, gain:.5, bd:.2, ta:.00006, turb:1.1, knock:.2, block:1.3, evo:90, ivo:200, exhDeg:270, intDeg:270, tick:0, misfire:.25},
+  diesel: {cyl:[[0,0],[180,0],[360,0],[540,0]], runners:[.6,.62,.6,.63], front:2.4, bd:.085, ta:.0004, turb:.25, knock:1.2, block:1.05, tick:0},
+  '2jz':  {cyl:[0,120,240,360,480,600].map(a => [a, 0]), runners:[.66,.7,.68,.72,.69,.71], front:2.5, bd:.09, turb:.45, knock:.45, block:.95},
+};
+// GT3-Motoren: echte Zündfolge / Bankverteilung, eigene Krümmer- und Rohrlängen pro Auto -> jeder klingt anders.
+// Audi R8 LMS und Lamborghini Huracán GT3 teilen sich denselben 5.2-L-V10, deshalb nur ein Eintrag.
+{
+  const seq = (banks, step, runners) => ({cyl: banks.map((b, i) => [i * step, b]), runners});
+  Object.assign(ENG, {
+    v10gt3:  Object.assign(alt(10, 72, .56), {front:1.8, bd:.07, turb:.4, block:1.05, tick:1.1, dual:true}),                                          // Audi/Lambo V10: hoch, schrill
+    f296:    Object.assign(seq([0,1,0,1,0,1], 120, [.44,.47,.43,.48,.45,.46]), {front:1.7, bd:.07, turb:.35, block:1.1, evo:125, dual:true}),         // 120°-V6 "kleiner V12"
+    gt3r:    Object.assign(seq([0,1,0,1,0,1], 120, [.52,.66,.5,.68,.54,.64]), {front:1.6, bd:.065, turb:.35, block:1.25, tick:1.4, evo:120, dual:true}), // Boxer 4.2, ungleiche Rohre L/R, metallisch
+    rsr:     Object.assign(seq([0,1,0,1,0,1], 120, [.46,.58,.44,.6,.48,.56]),  {front:1.4, bd:.055, turb:.4, block:1.3, tick:1.6, evo:115, dual:true}),  // Boxer 4.2 RSR: kürzer, noch schärfer
+    amg:     Object.assign(seq([0,1,0,1,1,0,1,0], 90, [.68,.74,.7,.8,.72,.66,.78,.7]), {front:2.9, bd:.13, turb:.5, knock:.6, block:.75, tick:.7, dual:true}), // M159 6.3 Sauger 1-5-4-8-6-3-7-2, tief & bassig
+    m4gt3:   Object.assign(seq([0,0,0,0,0,0], 120, [.58,.66,.6,.64,.62,.68]), {front:2.5, bd:.09, turb:.45, block:.95, tick:.9, evo:135}),           // P58 Reihen-6, Twin-Scroll-Paare
+    m3comp:  Object.assign(seq([0,0,0,0,0,0], 120, [.7,.72,.69,.71,.73,.7]), {front:3, bd:.1, turb:.3, block:.9, tick:.6, evo:140}),                 // S58 Strassenauto: länger, gedämpfter
+    vantage: Object.assign(seq([1,0,1,1,0,1,0,0], 90, [.4,.44,.42,.46,.41,.45,.43,.47]), {front:2.4, bd:.11, turb:.55, block:.8, tick:.6, evo:135, dual:true}), // M177 Hot-V: kurze Krümmer, Turbos dämpfen
+    rcf:     Object.assign(seq([0,1,0,0,1,0,1,1], 90, [.6,.63,.58,.65,.61,.6,.64,.59]), {front:2.2, bd:.09, turb:.35, block:.9, tick:1, evo:128, dual:true}),   // 2UR-GSE 1-8-7-3-6-5-4-2, drehfreudig
+    bentley: Object.assign(seq([1,0,1,0,0,1,0,1], 90, [.38,.4,.39,.42,.37,.41,.4,.43]), {front:3.2, bd:.15, turb:.5, knock:.4, block:.7, tick:.5, evo:140, dual:true}), // 4.0 TFSI Hot-V, sehr tief, wuchtig
+    mcl720:  Object.assign(alt(8, 90, .5), {front:1.9, bd:.08, turb:.45, block:.95, tick:1.1, evo:125, dual:true}),                                  // M840T Flatplane, hell
+    nsx:     Object.assign(seq([0,1,0,1,0,1], 120, [.4,.43,.41,.44,.4,.42]), {front:1.8, bd:.085, turb:.55, block:1, tick:1, evo:130, dual:true}),     // JNC1 75°-V6, Turbos direkt am Krümmer
+    mustang: Object.assign(seq([0,0,1,0,1,1,0,1], 90, [.62,.7,.66,.74,.6,.68,.72,.64]), {front:2.6, bd:.14, turb:.6, knock:.6, block:.78, tick:.8, dual:true}), // Coyote 1-3-7-2-6-5-4-8, laut & rau
+  });
+}
+const EXH = {
+  serie:    {front:1, tail:.7, mufRefl:-.7, helm:[175,2.2,1.3], mufLP:[260,480], mufGain:.35, chamber:.35, drive:1, asym:.1, level:1.9, crackle:.03, jet:.03, jetLP:1500},
+  sport:    {front:1, tail:.9, mufRefl:-.45, helm:[140,3.5,.45], mufLP:[2000,5000], mufGain:.85, chamber:.25, drive:1.6, asym:.25, level:1, crackle:.18, jet:.2, jetLP:7000},
+  klappe:   {front:1, tail:.8, mufRefl:-.7, helm:[165,2.2,1.2], mufLP:[260,480], mufGain:.35, chamber:.35, drive:1, asym:.15, level:1.9, crackle:.25, jet:.03, jetLP:1500,
+             flap:{mufRefl:-.2, mufLP:[2400,5500], mufGain:.95, chamber:.12, drive:2, level:.85, jet:.6}},
+  straight: {front:.6, tail:1.7, mufRefl:-.05, mufLP:[12000,16000], mufGain:1, chamber:0, drive:1.8, asym:.45, level:.62, crackle:.45, jet:.55, jetLP:14000, bass:1},
+  gt3:      {front:.6, tail:.5, mufRefl:-.25, helm:[210,2,.25], mufLP:[3200,7500], mufGain:.9, chamber:.12, drive:2.2, asym:.35, level:.6, crackle:.35, jet:.7, jetLP:12000, bass:1,
+             ring:[[2400,4,.12],[3900,5,.08]]},
+  titan:    {front:.65, tail:.6, mufRefl:-.2, mufLP:[4000,7000], mufGain:.95, chamber:.1, drive:2.1, asym:.35, level:.45, crackle:.3, jet:.85, jetLP:14000, bass:1,
+             ring:[[1870,3,.25],[3130,4,.18],[4610,5,.12]]},
+};
+const INT = {
+  serie:  {runner:.32, plen:[85,2,.5], lp:[320,700], hiss:.02, level:.6},
+  sport:  {runner:.3, plen:[110,1.6,.5], lp:[1300,2600], hiss:.06, level:1},
+  pilz:   {runner:.28, plen:[130,1.3,.4], lp:[3200,6000], hiss:.12, level:1.1},
+  itb:    {runner:.26, plen:null, lp:[7000,12000], hiss:.1, level:2.2},
+  ramair: {runner:.3, plen:[100,1.6,.5], lp:[1100,2400], hiss:.08, level:1, ram:true},
+  restrictor: {runner:.24, plen:[160,1.2,.45], lp:[4500,9000], hiss:.2, level:1.4},
+};
+const TUR = {
+  none:       {type:'none'},
+  klein:      {type:'turbo', f0:1800, f1:9000, whistle:1, whoosh:1, exMuff:3800, exGain:.85, down:1.2},
+  gross:      {type:'turbo', f0:900, f1:6000, whistle:1.1, whoosh:1.6, exMuff:2200, exGain:.75, down:1.8},
+  bi:         {type:'turbo', f0:1500, f1:8000, whistle:.8, whoosh:1.1, exMuff:3000, exGain:.8, down:1.4, twin:true},
+  kompressor: {type:'sc', pulley:2.4, lobes:3, whine:1, exMuff:0},
+};
+const LEV = {
+  serie: {modes:[[850,.012,1],[1650,.009,.6],[2700,.006,.4]]},
+  short: {modes:[[1250,.012,1],[2350,.009,.7],[3900,.006,.4]]},
+  gated: {modes:[[2150,.03,1],[3480,.02,.6],[5230,.012,.35]]},
+};
+const GBW = {h:.12, seq:1, dsg:.2, gt3:1};
+// Geradverzahnte Rennkästen (seq/gt3): Zahneingriffs-Frequenz = Motordrehzahl × Zähne des Eingangsrads, pro Gang anders -> Tonhöhe springt beim Schalten
+const STRAIGHT = {seq:true, gt3:true};
+const TEETH = [0, 14, 17, 20, 23, 26, 29, 31];
+// Karosserie: Rohrlänge, Kabinen-Dröhnen, Dämmung, Wind/Reifen, Mittelmotor
+const CAR = {
+  hatch:  {pipe:.9,  boom:[68,3],   cabLP:340, wind:1,    tyre:1},
+  coupe:  {pipe:1,   boom:[58,3],   cabLP:300, wind:.9,   tyre:1},
+  muscle: {pipe:1.15, boom:[48,2.5], cabLP:260, wind:1.15, tyre:1.1},
+  super:  {pipe:.7,  boom:[64,3],   cabLP:420, wind:.8,   tyre:1.2, mid:true},
+  kombi:  {pipe:1.1, boom:[44,2.5], cabLP:280, wind:1,    tyre:.9},
+  pickup: {pipe:1.25, boom:[40,2],  cabLP:300, wind:1.5,  tyre:1.4},
+  rally:  {pipe:.85, boom:[74,2],   cabLP:650, wind:1.3,  tyre:1.8, stripped:true},
+  twingo:   {pipe:.8,  boom:[76,3],   cabLP:360, wind:1.15, tyre:.9},
+  supra:    {pipe:1,   boom:[56,3],   cabLP:300, wind:.9,   tyre:1},
+  r8lms:    {pipe:.6,  boom:[66,2], cabLP:750, wind:1.1, tyre:1.9, stripped:true, mid:true},
+  huracan:  {pipe:.58, boom:[68,2], cabLP:760, wind:1.05, tyre:1.9, stripped:true, mid:true},
+  f296:     {pipe:.62, boom:[64,2], cabLP:740, wind:1.1, tyre:1.9, stripped:true, mid:true},
+  gt3r:     {pipe:.65, boom:[70,2], cabLP:720, wind:1.1, tyre:1.9, stripped:true, mid:true},
+  rsr:      {pipe:.6,  boom:[72,2], cabLP:730, wind:1.05, tyre:1.9, stripped:true, mid:true},
+  amg:      {pipe:.8,  boom:[58,2], cabLP:700, wind:1.2, tyre:1.9, stripped:true},
+  m4gt3:    {pipe:.75, boom:[62,2], cabLP:700, wind:1.2, tyre:1.9, stripped:true},
+  m3comp:   {pipe:1.05, boom:[52,3], cabLP:300, wind:.9, tyre:1},
+  vantage:  {pipe:.78, boom:[60,2], cabLP:700, wind:1.15, tyre:1.9, stripped:true},
+  rcf:      {pipe:.76, boom:[62,2], cabLP:690, wind:1.2, tyre:1.9, stripped:true},
+  bentley:  {pipe:.85, boom:[54,2], cabLP:680, wind:1.3, tyre:1.9, stripped:true},
+  mcl720:   {pipe:.55, boom:[68,2], cabLP:760, wind:1, tyre:1.9, stripped:true, mid:true},
+  nsx:      {pipe:.6,  boom:[66,2], cabLP:750, wind:1.1, tyre:1.9, stripped:true, mid:true},
+  mustang:  {pipe:.8,  boom:[56,2], cabLP:690, wind:1.25, tyre:1.9, stripped:true},
+};
+// Schaltknauf-Material verändert den Schaltklick (Frequenz / Ausklingen)
+const KNB = {leder:{f:.8, d:.6}, alu:{f:1.15, d:1.3}, holz:{f:.9, d:.85}, rot:{f:1, d:1}, carbon:{f:1.05, d:.8}, kristall:{f:1.35, d:1.8}};
+
+class EngineProc extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.P = {rpm:0, map:0, thr:0, spool:0, running:false, starting:false, cut:false, fuelCut:false, speed:0, final:3.9, torque:0, dEng:0, dTurbo:0, dGear:0, slip:0, knock:0};
+    this.M = {vol:.8, ex:1, in:1, tu:1, me:1, road:1, view:'aussen', pops:1, boostMax:1};
+    this.rodEnv = 0; this.pingEnv = 0; this.clatter = 0; this.growl = 0;
+    this.rpm = 0; this.map = 0; this.thr = 0; this.shaft = 0; this.flap = 0; this.ang = 0; this.evi = 0;
+    this.sample = 0; this.lastFlame = -1e9;
+    this.popQ = 0; this.popWait = 0; this.popAmp = 1;
+    this.bovEnv = 0; this.bovAtt = 0; this.bovPh = 0;
+    this.grind = 0; this.gph = 0; this.grImp = 0; this.click = 0; this.clickAmp = 0; this.clunk = 0;
+    this.shEnv = 0; this.shHiss = 0; this.shThud = 0; this.shN = 0; this.pumpT = 0; this.pumpA = 0; this.pumpN = 0; this.pumpPh = 0; this.pumpPh2 = 0;
+    this.tph = 0; this.tph2 = 0; this.scph = 0; this.gwph = 0; this.dwph = 0; this.stph = 0; this.stph2 = 0;
+    this.flowFast = 0; this.flowSlow = 1e-3; this.blockEnv = 0; this.tickEnv = 0;
+    this.pk = [0, 0, 0];
+    this.E = null;
+    this.port.onmessage = e => this.msg(e.data);
+  }
+  msg(m) {
+    switch (m.type) {
+      case 'cfg': this.cfg = m.cfg; this.build(m.cfg); break;
+      case 'p': Object.assign(this.P, m); break;
+      case 'mix': Object.assign(this.M, m); break;
+      case 'crackle': this.popQ = m.n; this.popAmp = m.amp; this.popWait = rnd() * .02 * SR; break;
+      case 'bov': this.bovEnv = Math.min(1.3, m.amt); this.bovAtt = 0; break;
+      case 'klack': this.click = 1; this.clickAmp = m.amp; if (m.dog) this.clunk = 1; break;
+      case 'pump': this.pumpT = m.dur; this.pumpA = m.amp; this.pumpN = 0; break;
+      case 'shift': this.shEnv = m.amp; this.shUp = !!m.up; this.shHiss = m.amp * (m.up ? 1 : .7); this.shThud = m.amp * (m.up ? 1 : 1.4); this.shN = 0; this.shVar = .85 + .3 * rnd(); break;
+      case 'grind': this.grind = 1; break;
+      case 'blow': for (const B of this.banks || []) B.pop.start(5, .00003, .006, .03, 2); this.blockEnv = 3; this.clatter = 1; this.rodEnv = 2; break;
+    }
+  }
+  build(c) {
+    const E = this.E = Object.assign({}, ENG_DEF, ENG[c.engine]);
+    const X = this.X = EXH[c.exhaust], I = this.I = INT[c.intake], T = this.T = TUR[c.turbo];
+    const CR = this.CAR = CAR[c.car] || CAR.coupe;
+    this.bovType = c.bov; this.gbType = c.gbType;
+    const nc = this.nc = E.cyl.length;
+    this.puffs = E.cyl.map(() => new Puff());
+    this.sucks = E.cyl.map(() => new Suck());
+    this.lastA = new Float32Array(nc);
+    this.trim = E.cyl.map((_, i) => { const v = Math.sin(i * 12.9898 + nc * 78.233) * 43758.5453; return 1 - .18 * (v - Math.floor(v)); });
+    this.tOff = E.cyl.map((_, i) => { const v = Math.sin(i * 39.3467 + nc * 11.135) * 24634.6345; return (v - Math.floor(v) - .5) * 5; });
+    const ev = [];
+    E.cyl.forEach(([a], i) => { a = (a + this.tOff[i] + E.cycle) % E.cycle; ev.push({a, t: 0, i}, {a: (a + E.evo) % E.cycle, t: 1, i}, {a: (a + E.ivo) % E.cycle, t: 2, i}); });
+    ev.sort((p, q) => p.a - q.a);
+    this.ev = ev; this.evi = 0; this.ang = 0;
+    const nb = E.dual ? 2 : 1;
+    this.banks = [];
+    for (let b = 0; b < nb; b++) this.banks.push(this.makeBank(b, E.cyl.map((cy, i) => [cy[1] % nb, i]).filter(x => x[0] === b).map(x => x[1])));
+    this.dual = nb === 2;
+    this.flap = 0;
+
+    this.iPipes = E.cyl.map((_, i) => new Pipe(I.runner * (1 + .03 * i / nc), C_AIR, .75, -.55, 9000, 2500));
+    this.iNorm = Math.pow(nc / 4, 1.2) / Math.sqrt(nc);
+    this.plen = I.plen ? new BQ().set('bp', I.plen[0], I.plen[1]) : null;
+    this.iLA = new BQ().set('lp', I.lp[0], .6); this.iLB = new BQ().set('lp', I.lp[1], .7);
+    this.hissBP = new BQ().set('bp', 2400, .7); this.iDC = new DC(25);
+
+    // viele kurz ausklingende Moden mit gestreuten Frequenzen -> Körperschall statt Dauerton
+    this.bModes = [];
+    for (let k = 0; k < 12; k++) {
+      const f = (380 + 190 * k * (1 + .08 * nz())) * E.block;
+      this.bModes.push(new Mode(f, .004 + .006 * rnd(), .9 / (1 + k * .25)));
+    }
+    this.bLP = new BQ().set('lp', 2600, .6);
+    this.tickHP = new BQ().set('hp', 5000, .7);
+
+    this.wBP = new BQ().set('bp', 2000, 1.1);
+    this.bovBP = new BQ().set('bp', 4000, .9); this.bovHP = new BQ().set('hp', 1500, .7);
+    this.flBP = new BQ().set('bp', 650, 1.4); this.umBP = new BQ().set('bp', 1000, .7);
+    this.scNoise = new BQ().set('bp', 1800, 2);
+
+    const kn = KNB[c.knob] || KNB.rot;
+    this.lvModes = LEV[c.lever].modes.map(([f, d, g]) => new Mode(f * kn.f, d * kn.d, g));
+    // Schäden: Pleuellager-Klopfen, Klingeln, Kupplung, Turbo-Lager, Getriebelager
+    this.rodModes = [[780, .02, 1], [1320, .015, .7], [2100, .01, .5]].map(([f, d, g]) => new Mode(f * E.block, d, g));
+    this.pingModes = [[6300, .008, 1], [7600, .006, .6]].map(([f, d, g]) => new Mode(f, d, g));
+    this.squealBP = new BQ().set('bp', 2600, 8); this.rattleHP = new BQ().set('hp', 3000, .7);
+    this.growlLP = new LP1(25); this.bearLP = new BQ().set('lp', 220, .7);
+    this.clunkMode = new Mode(95, .08, 1); this.clunk2 = new Mode(240, .04, .6);
+    this.shModes = [[2400, .004, 1], [3700, .003, .7], [5600, .0025, .5], [1500, .005, .6]].map(([f, d, g]) => new Mode(f, d, g));
+    this.shCase = [[420, .014, 1], [680, .011, .7], [950, .009, .45]].map(([f, d, g]) => new Mode(f, d, g));   // Getriebegehäuse
+    this.shDog = [[1900, .007, 1], [3100, .005, .7], [800, .01, .7], [4600, .004, .4], [260, .016, .9]].map(([f, d, g]) => new Mode(f, d, g));   // Klauen-Einrasten (2. Schlag), mit Körper
+    this.shKnock = [[165, .035, 1], [290, .024, .8], [470, .016, .55], [760, .010, .35]].map(([f, d, g]) => new Mode(f, d, g));   // Antriebsstrang/Karosserie: dumpfes 'Tock'
+    this.shBurstLP = new BQ().set('lp', 1200, .7);
+    this.shHP = new BQ().set('bp', 6500, 1.2); this.shThudM = new Mode(110, .025, 1); this.shThud2 = new Mode(60, .04, .7);
+    this.grHP = new BQ().set('hp', 900, .7);
+    this.pumpBP = new BQ().set('bp', 2600, 3); this.pumpLP = new BQ().set('lp', 900, .8);
+    this.meshBP = new BQ().set('bp', 1000, 9); this.meshBP2 = new BQ().set('bp', 2000, 7); this.meshLP = new LP1(30); this.meshPh = 0;
+    this.grModes = [[1900, .06, 1], [3300, .05, .6]].map(([f, d, g]) => new Mode(f, d, g));
+    this.stLP = new BQ().set('lp', 1400, .7);
+
+    this.tyreLP = new BQ().set('lp', 380, .6); this.windBP = new BQ().set('bp', 900, .5);
+    this.cabA = new BQ().set('lp', CR.cabLP, .6); this.cabB = new BQ().set('lp', CR.cabLP * 1.5, .7); this.boom = new BQ().set('bp', CR.boom[0], CR.boom[1]);
+    this.outDC = [new DC(18), new DC(18)];
+    this.extBlk = new BQ().set('lp', 1200, .6);
+    this.extIn = new BQ().set('lp', I.plen ? 1500 : 5000, .6);
+  }
+  makeBank(b, idx) {
+    const E = this.E, X = this.X, T = this.T, off = b ? 1.037 : 1;
+    return {
+      runners: idx.map(i => ({i, pipe: new Pipe(E.runners[i] * off, C_EX, .7, -.45, 7000, 20000)})),
+      norm: 1 / Math.sqrt(Math.max(1, idx.length)),
+      turb: T.exMuff ? new BQ().set('lp', T.exMuff, .6) : null,
+      front: new Pipe(E.front * X.front * this.CAR.pipe * off, C_EX, .75, X.mufRefl, 4000, 1800),
+      helm: X.helm ? new BQ().set('bp', X.helm[0] * off, X.helm[1]) : null, helmG: X.helm ? X.helm[2] : 0,
+      mA: new BQ().set('lp', X.mufLP[0], .55), mB: new BQ().set('lp', X.mufLP[1], .7),
+      ch: new Delay(.32 / C_EX * SR),
+      tail: new Pipe(X.tail * this.CAR.pipe * off, C_EX, -.4, X.bass ? -.7 : -.85, 6000, X.bass ? 300 : 600),
+      jetHP: new DC(700), jetLP: new BQ().set('lp', X.jetLP || 8000, .6), env: 0, jet: X.jet || 0,
+      dc: new DC(20), pop: new Puff(),
+      ring: X.ring ? X.ring.map(([f, q, g]) => Object.assign(new BQ().set('bp', f * off, q), {g})) : null,
+      mufGain: X.mufGain, chamber: X.chamber, drive: X.drive, level: X.level, out: 0,
+    };
+  }
+  trigger(e) {
+    const E = this.E, P = this.P, i = e.i, rev = 60 / Math.max(this.rpm, 80);
+    const spinning = P.running || P.starting || this.rpm > 50;
+    if (e.t === 0) {           // Zündung
+      let A = 0;
+      if (P.running && !P.cut && !P.fuelCut) {
+        A = Math.pow(Math.max(.05, this.map), .95);
+        const cv = .04 + .16 * clamp(1 - this.map, 0, 1);
+        A *= this.trim[i] * (1 + cv * (rnd() + rnd() - 1) * 1.4);
+        if ((E.misfire && this.map < .4 && rnd() < E.misfire) || rnd() < P.dEng * .22) A *= .12;
+        if (P.knock > 0 && rnd() < P.knock) this.pingEnv = .5 + .5 * P.knock;
+        this.blockEnv = Math.max(this.blockEnv, A * E.knock);
+      }
+      this.lastA[i] = A;
+      if (i === 0 && P.dEng > .35 && spinning) this.rodEnv = Math.max(this.rodEnv, (P.dEng - .35) * 1.6 * (.4 + .6 * this.map));
+    } else if (e.t === 1) {    // Auslass öffnet
+      const A = (spinning ? .2 * Math.min(1, this.rpm / 900) : 0) + this.lastA[i] * .85;
+      this.lastA[i] = 0;
+      if (A > 0) this.puffs[i].start(A, E.ta, clamp(E.bd * rev, .0003, .02), E.exhDeg / 360 * rev, E.turb * (.25 + .75 * clamp(this.map, 0, 1)));
+      this.tickEnv = Math.min(1, this.tickEnv + .5);
+      if (this.M.pops > 0 && this.popQ === 0 && P.running && (P.fuelCut || P.cut)) {
+        const base = this.X.crackle * this.M.pops * 4 / this.nc;
+        const p = P.cut ? base * .06 : base * .04 * clamp((this.rpm - 2000) / 4500, 0, 1);
+        if (rnd() < p) { this.popQ = 1 + (rnd() * 3 | 0); this.popAmp = .6 + rnd() * .7; this.popWait = rnd() * .015 * SR; }
+      }
+    } else if (spinning) {     // Einlass
+      if (i === 0 && P.dEng > .35) this.rodEnv = Math.max(this.rodEnv, (P.dEng - .35) * 1.6 * (.4 + .6 * this.map));
+      const B = (.12 + .88 * Math.pow(this.thr, .6)) * clamp(this.rpm / 7000, 0, 1.4) * (this.I.ram ? .7 + clamp(this.P.speed / 60, 0, .8) : 1);
+      this.sucks[i].start(B, E.intDeg / 360 * rev);
+    }
+  }
+  process(inputs, outputs) {
+    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length;
+    if (!this.E) { L.fill(0); if (R !== L) R.fill(0); return true; }
+    const P = this.P, M = this.M, E = this.E, X = this.X, I = this.I, T = this.T;
+
+    if (X.flap) {
+      const open = (this.rpm > 3800 || P.thr > .7) ? 1 : 0;
+      this.flap += (open - this.flap) * (1 - Math.exp(-n / (.3 * SR)));
+      const f = this.flap, F = X.flap;
+      for (const B of this.banks) {
+        B.front.re = lerp(X.mufRefl, F.mufRefl, f); B.jet = lerp(X.jet, F.jet, f); B.jetLP.set('lp', lerp(X.jetLP, 9000, f), .6); B.mufGain = lerp(X.mufGain, F.mufGain, f);
+        B.chamber = lerp(X.chamber, F.chamber, f); B.drive = lerp(X.drive, F.drive, f); B.level = lerp(X.level, F.level, f);
+        B.mA.set('lp', lerp(X.mufLP[0], F.mufLP[0], f), .55); B.mB.set('lp', lerp(X.mufLP[1], F.mufLP[1], f), .7);
+      }
+    }
+    if (T.type !== 'none') {
+      const tgt = T.type === 'sc' ? clamp(this.rpm / 6500, 0, 1.2) : P.spool;
+      this.shaft += (tgt - this.shaft) * (1 - Math.exp(-n / ((tgt > this.shaft ? .06 : T.down || 1) * SR)));
+    }
+    const bs = clamp(.55 + .4 * M.boostMax, .6, 1.6), dT = P.dTurbo;
+    const tf = T.type === 'turbo' ? (T.f0 + (T.f1 - T.f0) * Math.min(1.2, this.shaft) * bs) * (1 + .25 * Math.min(dT, 1)) : 0;
+    if (tf) this.wBP.set('bp', clamp(tf * .4, 300, 5000), 1.1);
+    const wAmp = T.type === 'turbo' && dT < 1 ? T.whistle * LV.whistle * Math.pow(Math.max(0, this.shaft), 1.7) * (.3 + .7 * P.thr) * (.5 + .5 * bs) * (1 + 5 * dT * dT) : 0;
+    const rattle = T.type !== 'none' && dT >= 1 && P.running ? .06 * (.2 + .8 * P.thr) * clamp(this.rpm / 4000, .2, 1.5) : 0;
+    const whAmp = T.type === 'turbo' ? T.whoosh * LV.whoosh * this.shaft * (.25 + .75 * P.thr) : 0;
+    const scF = T.type === 'sc' ? this.rpm / 60 * T.pulley * T.lobes : 0;
+    const scAmp = T.type === 'sc' ? LV.sc * this.shaft * (.3 + .7 * P.thr) : 0;
+    if (this.bovEnv > 1e-4 && this.bovType === 'pssh') this.bovBP.set('bp', 2200 + 3500 * Math.min(1, this.bovEnv), .9);
+    const wheelHz = P.speed / (TAU * (P.wr || .32)), gwF = wheelHz * P.final * 23, dwF = wheelHz * 41;
+    const gwAmp = (GBW[this.gbType] || .12) * LV.gear * clamp(P.speed / 6, 0, 1) * (.25 + .75 * Math.min(1, Math.abs(P.torque))) * (1 + 6 * P.dGear);
+    // Geradverzahnung: Heulen/Kreischen des Zahneingriffs, lastabhängig, nur mit eingelegtem Gang und geschlossener Kupplung
+    const straight = !!STRAIGHT[this.gbType], gear = P.gear | 0;
+    const meshF = gear > 0 ? this.rpm / 60 * TEETH[Math.min(gear, 7)] : 0;
+    const meshAmp = straight && gear > 0 && this.rpm > 900 ? LV.gear * 2.6 * (M.gear ?? 1) * (P.clutch ?? 1) * (.18 + .82 * Math.min(1, Math.abs(P.torque)) ** .7) * clamp((this.rpm - 900) / 2500, 0, 1) * (P.running ? 1 : .3) : 0;
+    if (meshAmp > 1e-6) { this.meshBP.set('bp', clamp(meshF, 200, 9000), 9); this.meshBP2.set('bp', clamp(meshF * 2, 400, 14000), 7); }
+    const bearAmt = P.dGear * P.dGear * clamp(P.speed / 15, 0, 1.5) * .25;
+    const tyreL = Math.pow(clamp(P.speed / 40, 0, 1.5), 1.3) * LV.tyre * this.CAR.tyre, windL = Math.pow(P.speed / 60, 2) * LV.wind * this.CAR.wind;
+    const hissAmt = I.hiss * LV.hiss * clamp(this.rpm / 7000, 0, 1.3) * (.05 + .95 * Math.pow(P.thr, 1.5));
+    const innen = M.view === 'innen';
+    const kR = 1 - Math.exp(-1 / (.012 * SR)), kM = 1 - Math.exp(-1 / (.02 * SR));
+    const bovD = Math.exp(-1 / ((this.bovType === 'flutter' ? .3 : .22) * SR)), attA = 1 - Math.exp(-1 / (.004 * SR));
+    const blockD = Math.exp(-1 / (.004 * SR)), tickD = Math.exp(-1 / (.0006 * SR)), clickD = Math.exp(-1 / (.002 * SR));
+    const grindD = Math.exp(-1 / (.14 * SR)), flowF = 1 - Math.exp(-1 / (.003 * SR)), flowS = 1 - Math.exp(-1 / (.08 * SR));
+    const jetLoad = Math.pow(clamp(this.map, .05, 2), 1.5);
+    const cyc = E.cycle, ev = this.ev, nev = ev.length, banks = this.banks, nbk = banks.length, dbg = this.dbg;
+
+    for (let s = 0; s < n; s++) {
+      this.rpm += (P.rpm - this.rpm) * kR;
+      this.map += (P.map - this.map) * kM;
+      this.thr += (P.thr - this.thr) * kM;
+
+      if (this.rpm > 1) {
+        this.ang += this.rpm * 6 / SR;
+        while (this.evi < nev && this.ang >= ev[this.evi].a) this.trigger(ev[this.evi++]);
+        if (this.ang >= cyc) {
+          this.ang -= cyc; this.evi = 0;
+          while (this.evi < nev && this.ang >= ev[this.evi].a) this.trigger(ev[this.evi++]);
+        }
+      }
+      if (this.popQ > 0 && --this.popWait <= 0) {
+        for (const B of banks) B.pop.start(this.popAmp * (.5 + .5 * rnd()), .00004, .0007 + .0012 * rnd(), .012, 1.2);
+        this.popQ--; this.popWait = (.012 + .06 * rnd()) * SR;
+        if (this.sample + s - this.lastFlame > .04 * SR) { this.lastFlame = this.sample + s; this.port.postMessage('flame'); }
+      }
+
+      // ---- Auspuff ----
+      let flow = 0;
+      for (let b = 0; b < nbk; b++) {
+        const B = banks[b], rn = B.runners;
+        let col = 0;
+        for (let r = 0; r < rn.length; r++) col += rn[r].pipe.p(this.puffs[rn[r].i].p());
+        col = col * B.norm + B.pop.p();
+        const ac = col > 0 ? col : -col;
+        flow += ac;
+        B.env += (ac - B.env) * flowF;
+        if (B.turb) col = B.turb.p(col) * T.exGain;
+        const fp = B.front.p(col);
+        let m = B.mA.p(B.mB.p(fp)) * B.mufGain;
+        if (B.helm) m += B.helm.p(fp) * B.helmG;
+        if (B.chamber > 0) { const d = B.ch.peek(); B.ch.push(m); m -= B.chamber * d; }
+        let t = B.dc.p(B.tail.p(m) + B.jetLP.p(B.jetHP.p(nz())) * B.env * jetLoad * B.jet * LV.jet) * B.drive;
+        t = t > 0 ? Math.tanh(t) : Math.tanh(t * (1 - X.asym)) / (1 - X.asym);
+        t /= B.drive;
+        if (B.ring) { let rs = 0; for (const md of B.ring) rs += md.p(t) * md.g; t += rs; }
+        B.out = t * B.level * E.gain * LV.ex;
+      }
+      this.flowFast += (flow - this.flowFast) * flowF;
+      this.flowSlow += (flow - this.flowSlow) * flowS;
+
+      // ---- Ansaugung ----
+      let ia = 0;
+      for (let c = 0; c < this.nc; c++) ia += this.iPipes[c].p(this.sucks[c].p());
+      ia *= this.iNorm;
+      if (this.plen) ia = this.plen.p(ia) * I.plen[2] * 3 + ia * .5;
+      ia = this.iLA.p(this.iLB.p(ia)) + this.hissBP.p(nz()) * hissAmt;
+      ia = this.iDC.p(ia) * I.level * LV.in;
+
+      // ---- Motorblock & Ventiltrieb ----
+      let bx = 0;
+      if (this.blockEnv > 1e-4) { bx = nz() * this.blockEnv; this.blockEnv *= blockD; }
+      let blk = 0;
+      for (const md of this.bModes) blk += md.p(bx);
+      blk = this.bLP.p(blk) * LV.blk;
+      if (this.tickEnv > 1e-4) { blk += this.tickHP.p(nz()) * this.tickEnv * E.tick * LV.tick; this.tickEnv *= tickD; }
+
+      // ---- Turbo / Kompressor / Blow-Off ----
+      let tu = 0;
+      if (wAmp > 1e-6) {
+        this.tph += tf / SR; if (this.tph > 1) this.tph -= 1;
+        const am = .7 + .3 * clamp(this.flowFast / (this.flowSlow + 1e-6), 0, 2);
+        let w = Math.sin(TAU * this.tph) + .22 * Math.sin(2 * TAU * this.tph);
+        if (T.twin) { this.tph2 += tf * 1.047 / SR; if (this.tph2 > 1) this.tph2 -= 1; w += .8 * Math.sin(TAU * this.tph2); }
+        tu += w * wAmp * am;
+      }
+      if (whAmp > 1e-6) tu += this.wBP.p(nz()) * whAmp * (dT >= 1 ? .3 : 1);
+      if (rattle > 0) tu += this.rattleHP.p(nz()) * rattle * (rnd() < .3 ? 1 : .2);
+      if (scAmp > 1e-6) {
+        this.scph += scF / SR; if (this.scph > 1) this.scph -= 1;
+        const ph = TAU * this.scph;
+        tu += (Math.sin(ph) + .5 * Math.sin(2 * ph) + .2 * Math.sin(3 * ph)) * scAmp * (.9 + .1 * nz()) + this.scNoise.p(nz()) * scAmp * .4;
+      }
+      if (this.bovEnv > 1e-4) {
+        this.bovAtt += (1 - this.bovAtt) * attA;
+        const env = this.bovEnv * this.bovAtt * LV.bov;
+        if (this.bovType === 'pssh') tu += this.bovBP.p(this.bovHP.p(nz())) * env;
+        else if (this.bovType === 'flutter') {
+          this.bovPh += (8 + 16 * this.bovEnv) / SR; if (this.bovPh > 1) this.bovPh -= 1;
+          let g = Math.sin(TAU * this.bovPh); g = g > 0 ? g * g * g * g : 0;
+          tu += (this.flBP.p(nz()) * 4 + Math.sin(TAU * this.tph) * .4) * env * g;
+        } else tu += this.umBP.p(nz()) * env * .3;
+        this.bovEnv *= bovD;
+      }
+
+      // ---- Getriebe & Mechanik ----
+      let me = 0;
+      if (gwAmp > 1e-6) {
+        this.gwph += gwF / SR; if (this.gwph > 1) this.gwph -= 1;
+        this.dwph += dwF / SR; if (this.dwph > 1) this.dwph -= 1;
+        const g = TAU * this.gwph;
+        const gr = P.dGear > 0 ? 1 + P.dGear * 1.4 * this.growlLP.p(nz() * 6) : 1;
+        me += (Math.sin(g) + .35 * Math.sin(2 * g) + .12 * Math.sin(3 * g) + .3 * Math.sin(TAU * this.dwph)) * gwAmp * gr;
+      }
+      if (meshAmp > 1e-6) {
+        // Ton mit Obertönen + leichtes Zahn-zu-Zahn-Flattern, dazu resonantes Rauschen für das Kreischen
+        this.meshPh += meshF * (1 + .004 * this.meshLP.p(nz())) / SR; if (this.meshPh > 1) this.meshPh -= 1;
+        const ph = TAU * this.meshPh;
+        const tone = Math.sin(ph) + .55 * Math.sin(2 * ph + .3) + .3 * Math.sin(3 * ph) + .15 * Math.sin(4 * ph);
+        const screech = this.meshBP.p(nz()) * .7 + this.meshBP2.p(nz()) * .35;
+        me += (tone * .8 + screech) * meshAmp;
+      }
+      if (P.starting) {
+        this.stph += 470 / SR; if (this.stph > 1) this.stph -= 1;
+        this.stph2 += 95 / SR; if (this.stph2 > 1) this.stph2 -= 1;
+        me += this.stLP.p((this.stph * 2 - 1) * (.6 + .4 * Math.sin(TAU * this.stph2))) * LV.starter;
+      }
+      let cx = 0, dx = 0;
+      if (this.click > 1e-4) { cx = nz() * this.click * this.clickAmp; this.click *= clickD; }
+      if (this.clunk > 1e-4) { dx = nz() * this.clunk; this.clunk *= clickD; }
+      let cl = 0;
+      for (const md of this.lvModes) cl += md.p(cx);
+      me += (cl + this.clunkMode.p(dx) * .6 + this.clunk2.p(dx) * .5) * LV.click;
+      if (this.shEnv > 1e-4 || this.shHiss > 1e-4) {   // Schaltschlag: leiser Aktuator-Klick, dann ~15 ms später das dumpfe Einrasten (Körper tief, Metallkante leise)
+        const n = this.shN++, v = this.shVar;
+        const imp = n < SR * .0015 ? nz() * this.shEnv * (1 - n / (SR * .0015)) : 0;
+        let sm = 0; for (const md of this.shModes) sm += md.p(imp);
+        const hs = n > SR * .002 && n < SR * .04 ? this.shHP.p(nz()) * this.shHiss * Math.sin(Math.PI * (n - SR * .002) / (SR * .038)) : 0;
+        const t2 = SR * .015 * v, on2 = n >= t2 && n < t2 + SR * .005;
+        const burst = on2 ? this.shBurstLP.p(nz()) * this.shThud * 3 * (1 - (n - t2) / (SR * .005)) : this.shBurstLP.p(0);
+        let kn = 0; for (const md of this.shKnock) kn += md.p(burst);
+        const edge = n >= t2 && n < t2 + SR * .0012 ? nz() * this.shThud * .6 : 0;
+        let dg = 0; for (const md of this.shDog) dg += md.p(edge);
+        const th = n >= t2 && n < t2 + SR * .003 ? nz() * this.shThud : 0;
+        me += (sm * .25 + hs * .15 + kn * 1.9 + dg * .4 + this.shThudM.p(th) * .9 + this.shThud2.p(th) * .45) * LV.click * .07 * (this.M.shift ?? 1);
+        if (n > SR * .14) { this.shEnv = 0; this.shHiss = 0; this.shThud = 0; }
+      }
+      if (this.pumpT > 0) {   // Kompressor: brummender Elektromotor (Buzz mit Obertönen) + leises Lager-Sirren, weicher Ein-/Auslauf
+        const n = this.pumpN++, T = this.pumpT * SR, ramp = SR * .12;
+        const env = Math.min(1, n / ramp, (T - n) / (ramp * 2)) * this.pumpA;
+        if (n >= T) this.pumpT = 0;
+        else {
+          this.pumpPh += (118 + 6 * Math.sin(n / SR * 9)) / SR; if (this.pumpPh > 1) this.pumpPh -= 1;
+          this.pumpPh2 += 2450 / SR; if (this.pumpPh2 > 1) this.pumpPh2 -= 1;
+          const ph = TAU * this.pumpPh, saw = 2 * this.pumpPh - 1;
+          const buzz = this.pumpLP.p(saw * .7 + Math.sin(2 * ph) * .35 + Math.sin(3 * ph) * .25);
+          me += (buzz * 1.1 + this.pumpBP.p(nz()) * .25 + Math.sin(TAU * this.pumpPh2) * .06) * env * LV.click * .03 * (this.M.shift ?? 1);
+        }
+      }
+      if (this.grind > 1e-3) {
+        this.gph += (430 + 80 * nz()) / SR; if (this.gph > 1) this.gph -= 1;
+        me += this.grHP.p(this.gph < .35 ? nz() : nz() * .15) * this.grind * LV.grind;
+        if (rnd() < .004) this.grImp = this.grind;
+        this.grind *= grindD;
+      }
+      const gi = this.grImp; this.grImp = 0;
+      for (const md of this.grModes) me += md.p(gi) * LV.grind * .5;
+
+      // ---- Schadensgeräusche ----
+      let dm = 0;
+      if (bearAmt > 1e-5) dm += this.bearLP.p(nz()) * bearAmt * 3;
+      if (P.slip > .02) dm += this.squealBP.p(nz()) * P.slip * .5;
+      let rx = 0, px = 0;
+      if (this.rodEnv > 1e-4) { rx = nz() * this.rodEnv; this.rodEnv *= clickD; }
+      if (this.pingEnv > 1e-4) { px = nz() * this.pingEnv; this.pingEnv *= clickD; }
+      if (this.clatter > 1e-3) { if (rnd() < .002) this.rodEnv = this.clatter * (.5 + rnd()); this.clatter *= .99997; }
+      for (const md of this.rodModes) dm += md.p(rx) * .5;
+      for (const md of this.pingModes) dm += md.p(px) * .12;
+      me += dm;
+
+      // ---- Reifen & Wind ----
+      let road = 0;
+      if (tyreL > 1e-5 || windL > 1e-5) {
+        const w = nz();
+        this.pk[0] = .99765 * this.pk[0] + w * .099046;
+        this.pk[1] = .963 * this.pk[1] + w * .2965164;
+        this.pk[2] = .57 * this.pk[2] + w * 1.0526913;
+        road = this.tyreLP.p((this.pk[0] + this.pk[1] + this.pk[2] + w * .1848) * .2) * tyreL + this.windBP.p(w) * windL;
+      }
+
+      // ---- Mischung / Hörposition ----
+      const b0 = banks[0].out, b1 = this.dual ? banks[1].out : b0;
+      let l, r;
+      if (!innen) {
+        const exL = this.dual ? b0 * .85 + b1 * .3 : b0 * .8, exR = this.dual ? b1 * .85 + b0 * .3 : b0 * .8;
+        const common = this.extIn.p(ia) * M.in * .5 + this.extBlk.p(blk) * M.me * .1 + tu * M.tu * .6 + me * M.me * .45 + road * M.road * .7;
+        l = exL * M.ex + common; r = exR * M.ex + common;
+      } else {
+        const c = (b0 + b1) * .5;
+        const cab = this.cabA.p(this.cabB.p(c)) * 1.6 + this.boom.p(c) * 1.2, CR = this.CAR;
+        const eb = CR.mid ? 1.7 : 1, st = CR.stripped ? 1.6 : 1;   // Mittelmotor: Motor sitzt hinter dir; Rallye: keine Dämmung
+        l = r = cab * M.ex * (CR.mid ? .8 : 1) + ia * M.in * eb + blk * M.me * .9 * eb + tu * M.tu * .8 * eb + me * M.me * st + road * M.road * 1.4 * st;
+      }
+      l = this.outDC[0].p(l) * M.vol; r = this.outDC[1].p(r) * M.vol;
+      L[s] = Math.tanh(l); R[s] = Math.tanh(r);
+      if (dbg) { dbg.ex += b0 * b0; dbg.in += ia * ia; dbg.blk += blk * blk; dbg.tu += tu * tu; dbg.me += me * me; dbg.road += road * road; dbg.out += L[s] * L[s]; dbg.n++; if (Math.abs(L[s]) > dbg.peak) dbg.peak = Math.abs(L[s]); }
+    }
+    this.sample += n;
+    if (!Number.isFinite(L[n - 1]) || !Number.isFinite(R[n - 1])) { this.build(this.cfg); L.fill(0); if (R !== L) R.fill(0); }
+    return true;
+  }
+}
+registerProcessor('engine', EngineProc);
+}
+</script>
+<script>
+'use strict';
+const TAU = Math.PI * 2, RPM = 60 / TAU;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const approach = (v, t, step) => v < t ? Math.min(t, v + step) : Math.max(t, v - step);
+
+// ---------------- Fahrzeug-Konstanten ----------------
+let WR = 0.32;   // Radradius in m (aus dem Radumfang im Customizer)
+const MASS = 1400, DRAG = 0.42, ROLL = 180, BRAKE = 13000, REV = 3.4;
+
+// ---------------- Teile ----------------
+const ENGINES = {
+  r3:     {name:'3-Zylinder 1.0 L', fpr:1.5, amp:[1,.8,.92], timing:[1,1,1], idle:950, red:6800, torque:115, peak:3600, spread:4800, inertia:.12, tau:.2, rough:.8, tick:.6, clatter:0, res:1.15, misfire:0},
+  r4:     {name:'4-Zylinder 2.0 L', fpr:2, amp:[1,.9,.96,.87], timing:[1,1,1,1], idle:850, red:7000, torque:215, peak:4500, spread:5000, inertia:.15, tau:.18, rough:.6, tick:.5, clatter:0, res:1, misfire:0},
+  boxer:  {name:'Boxer 4-Zylinder 2.5 L', fpr:2, amp:[1,.6,.95,.66], timing:[1.14,.86,1.1,.9], idle:800, red:7200, torque:300, peak:4000, spread:5200, inertia:.17, tau:.21, rough:.7, tick:.4, clatter:0, res:.88, misfire:0},
+  r6:     {name:'Reihen-6-Zylinder 3.0 L', fpr:3, amp:[1,.95,.98,.93,1,.96], timing:[1,1,1,1,1,1], idle:750, red:7500, torque:370, peak:4800, spread:5500, inertia:.19, tau:.17, rough:.45, tick:.5, clatter:0, res:.95, misfire:0},
+  v6:     {name:'V6 3.5 L', fpr:3, amp:[1,.8,.97,.84,1,.82], timing:[1.04,.96,1.03,.97,1.02,.98], idle:750, red:7200, torque:390, peak:4700, spread:5500, inertia:.2, tau:.19, rough:.55, tick:.45, clatter:0, res:.9, misfire:0},
+  v8x:    {name:'V8 Crossplane 5.0 L', fpr:4, amp:[1,.55,.82,.68,.97,.58,.86,.64], timing:[1.16,.84,1.1,.9,1.13,.87,1.06,.94], idle:700, red:7000, torque:540, peak:4300, spread:5500, inertia:.27, tau:.21, rough:.5, tick:.3, clatter:0, res:.75, misfire:0},
+  v8f:    {name:'V8 Flatplane 4.0 L', fpr:4, amp:[1,.86,.95,.83,1,.88,.94,.85], timing:[1,1,1,1,1,1,1,1], idle:950, red:8800, torque:470, peak:6500, spread:6500, inertia:.19, tau:.15, rough:.7, tick:.5, clatter:0, res:1.05, misfire:0},
+  v10:    {name:'V10 5.2 L', fpr:5, amp:[1,.9,.96,.86,.98,.92,.95,.88,1,.9], timing:[1.03,.97,1.02,.98,1.03,.97,1.02,.98,1.01,.99], idle:950, red:8700, torque:565, peak:6500, spread:6500, inertia:.21, tau:.15, rough:.55, tick:.45, clatter:0, res:1.1, misfire:0},
+  v12:    {name:'V12 6.5 L', fpr:6, amp:Array.from({length:12}, (_, i) => 1 - .08 * ((i * 5) % 12) / 12), timing:Array(12).fill(1), idle:850, red:9000, torque:720, peak:6000, spread:7000, inertia:.25, tau:.14, rough:.4, tick:.4, clatter:0, res:1.2, misfire:0},
+  wankel: {name:'Wankel 2-Scheiben 1.3 L', fpr:2, amp:[1,.93], timing:[1.02,.98], idle:1000, red:9000, torque:250, peak:6000, spread:6500, inertia:.14, tau:.11, rough:1.2, tick:0, clatter:0, res:1.1, misfire:.25},
+  v10gt3:  {name:'V10 5.2 L (Audi R8 LMS / Lamborghini Huracán GT3)', group:'GT3 & Rennsport', idle:1500, red:8600, torque:525, peak:6600, spread:6500, inertia:.17},
+  f296:    {name:'V6 2.9 L Biturbo 120° (Ferrari 296 GT3)', group:'GT3 & Rennsport', idle:1500, red:8000, torque:430, peak:5000, spread:6000, inertia:.17},
+  gt3r:    {name:'Boxer-6 4.2 L (Porsche 911 GT3 R)', group:'GT3 & Rennsport', idle:1600, red:9400, torque:470, peak:7000, spread:6500, inertia:.15},
+  rsr:     {name:'Boxer-6 4.2 L (Porsche 911 RSR)', group:'GT3 & Rennsport', idle:1700, red:9500, torque:450, peak:7250, spread:6500, inertia:.15},
+  amg:     {name:'V8 6.3 L Sauger (Mercedes-AMG GT3)', group:'GT3 & Rennsport', idle:1300, red:7500, torque:650, peak:5000, spread:5500, inertia:.25},
+  m4gt3:   {name:'Reihen-6 3.0 L Biturbo (BMW M4 GT3)', group:'GT3 & Rennsport', idle:1400, red:7500, torque:390, peak:4500, spread:5000, inertia:.18},
+  m3comp:  {name:'Reihen-6 3.0 L Biturbo (BMW M3 Competition)', group:'GT3 & Rennsport', idle:800, red:7200, torque:380, peak:4000, spread:5000, inertia:.2},
+  vantage: {name:'V8 4.0 L Biturbo (Aston Martin Vantage GT3)', group:'GT3 & Rennsport', idle:1300, red:7200, torque:330, peak:4500, spread:5000, inertia:.22},
+  rcf:     {name:'V8 5.0 L Sauger (Lexus RC F GT3)', group:'GT3 & Rennsport', idle:1300, red:7800, torque:560, peak:5200, spread:5500, inertia:.22},
+  bentley: {name:'V8 4.0 L Biturbo (Bentley Continental GT3)', group:'GT3 & Rennsport', idle:1200, red:7200, torque:360, peak:4000, spread:5000, inertia:.26},
+  mcl720:  {name:'V8 4.0 L Biturbo Flatplane (McLaren 720S GT3)', group:'GT3 & Rennsport', idle:1400, red:8200, torque:340, peak:5500, spread:6000, inertia:.17},
+  nsx:     {name:'V6 3.5 L Biturbo (Honda/Acura NSX GT3)', group:'GT3 & Rennsport', idle:1400, red:7500, torque:350, peak:5000, spread:5500, inertia:.17},
+  mustang: {name:'V8 5.0 L (Ford Mustang GT3)', group:'GT3 & Rennsport', idle:1200, red:7500, torque:600, peak:5000, spread:5500, inertia:.25},
+  '2jz':  {name:'Reihen-6 3.0 L Biturbo 2JZ-GTE (Toyota Supra Mk4)', idle:750, red:7000, torque:440, peak:4200, spread:5000, inertia:.2},
+  diesel: {name:'Diesel 4-Zylinder 2.0 L', fpr:2, amp:[1,.92,.97,.9], timing:[1,1,1,1], idle:780, red:4800, torque:420, peak:1900, spread:3500, inertia:.32, tau:.09, rough:.9, tick:0, clatter:1, res:.95, misfire:0},
+};
+const EXHAUSTS = {
+  serie:    {name:'Serie (mit Schalldämpfer)', dry:.4, r1:.8, f1:110, q1:1.2, r2:.25, f2:420, q2:1.5, r3:0, drive:1, lp:650, level:.55, rasp:.3, crackle:.03, bypass:0, torque:1},
+  sport:    {name:'Sportauspuff', dry:.5, r1:.9, f1:130, q1:1.4, r2:.45, f2:520, q2:1.5, r3:0, drive:1.8, lp:1700, level:.8, rasp:.6, crackle:.18, bypass:.15, torque:1.03},
+  klappe:   {name:'Klappenauspuff', dry:.45, r1:.85, f1:120, q1:1.3, r2:.4, f2:480, q2:1.5, r3:0, drive:1.1, driveOpen:2.1, lp:650, lpOpen:2700, level:.5, levelOpen:.95, rasp:.45, crackle:.25, bypass:.2, torque:1.03, flap:true},
+  straight: {name:'Straight Pipe (ohne Dämpfer)', dry:.8, r1:.7, f1:150, q1:1.2, r2:.6, f2:700, q2:1.4, r3:0, drive:3.2, lp:6000, level:1, rasp:1.1, crackle:.45, bypass:.5, torque:1.06},
+  gt3:      {name:'GT3-Rennauspuff (nach Reglement)', torque:1.07},
+  titan:    {name:'Titan-Rennauspuff', dry:.6, r1:.5, f1:180, q1:1.3, r2:.7, f2:900, q2:2, r3:.35, f3:2600, q3:10, drive:2.6, lp:8000, level:.95, rasp:.9, crackle:.3, bypass:.4, torque:1.07},
+};
+const INTAKES = {
+  serie:  {name:'Serien-Luftfilterkasten', gain:.12, f:450, q:1, honk:0, torque:1},
+  sport:  {name:'Sportluftfilter', gain:.35, f:800, q:.9, honk:.05, h1:420, h2:1500, torque:1.02},
+  pilz:   {name:'Offener Pilzfilter', gain:.6, f:1300, q:.7, honk:.12, h1:480, h2:1700, torque:1.04},
+  itb:    {name:'Einzeldrosselklappen', gain:.55, f:1800, q:.8, honk:.45, h1:380, h2:1400, torque:1.08},
+  restrictor: {name:'Rennluftfilter mit Restriktor', torque:1.05},
+  ramair: {name:'Ram-Air Hutze', gain:.4, f:600, q:1, honk:.1, h1:350, h2:1200, torque:1.03, ram:true},
+};
+const TURBOS = {
+  none:       {name:'Kein Turbo (Sauger)', type:'none'},
+  klein:      {name:'Kleiner Turbo', type:'turbo', on:1800, full:3300, lag:.25, f0:2500, f1:8000, whistle:.05, whoosh:.1, wf:3500, gain:.85},
+  gross:      {name:'Grosser Turbo', type:'turbo', on:3300, full:5500, lag:.9, f0:1500, f1:5500, whistle:.07, whoosh:.22, wf:2200, gain:1},
+  bi:         {name:'Biturbo', type:'turbo', on:2400, full:4000, lag:.4, f0:2200, f1:7000, whistle:.05, whoosh:.15, wf:3000, gain:.95, twin:true},
+  kompressor: {name:'Kompressor (Roots)', type:'sc', ratio:21, whistle:.06, gain:.7},
+};
+const BOVS = {
+  pssh:    {name:'Pop-Off (Pssshh)'},
+  flutter: {name:'Flattern (Stu-tu-tu)'},
+  umluft:  {name:'Schubumluft (leise)'},
+};
+const GEARBOXES = {
+  h5:  {name:'5-Gang H-Schaltung', type:'h', ratios:[3.45,2.05,1.42,1.08,.86], final:4.1, whine:.15},
+  h6:  {name:'6-Gang H-Schaltung', type:'h', ratios:[3.6,2.19,1.54,1.21,1,.83], final:3.9, whine:.15},
+  seq: {name:'6-Gang sequentiell (Dogbox)', type:'seq', ratios:[2.9,2.1,1.66,1.36,1.15,.99], final:4, whine:1, shiftTime:.08},
+  dsg: {name:'7-Gang Doppelkupplung (Paddles)', type:'dsg', paddle:true, blip:.55, ratios:[3.9,2.3,1.6,1.2,.95,.78,.64], final:3.6, whine:.2, shiftTime:.045},
+  gt3: {name:'6-Gang GT3-Renngetriebe (sequentiell, Paddles)', type:'gt3', paddle:true, blip:1, ratios:[3.1,2.25,1.8,1.5,1.28,1.1], final:3.3, whine:1, shiftTime:.05, downTime:.1},
+};
+const GATES = {
+  h5: {rest:0, cols:[{x:-1, up:1, down:2}, {x:0, up:3, down:4}, {x:1, up:5, down:-1}]},
+  h6: {rest:.5, cols:[{x:-1.5, up:-1, down:null}, {x:-.5, up:1, down:2}, {x:.5, up:3, down:4}, {x:1.5, up:5, down:6}]},
+};
+const LEVERS = {
+  serie: {name:'Serien-Schalthebel', engage:.8, klack:.35, tone:1300, throw:1},
+  short: {name:'Short-Shifter', engage:.62, klack:.65, tone:2100, throw:.72},
+  gated: {name:'Offene Schaltkulisse (Metall)', engage:.78, klack:.9, tone:2900, throw:.95, ring:true},
+};
+const KNOBS = {
+  leder:    {name:'Leder schwarz', col:'#1d1d1f', hi:'#6a6a70'},
+  alu:      {name:'Aluminium-Kugel', col:'#7d848c', hi:'#ffffff'},
+  holz:     {name:'Holz', col:'#5a3212', hi:'#c9894e', grain:true},
+  rot:      {name:'Rennsport Rot', col:'#8f0c15', hi:'#ff7a7a'},
+  carbon:   {name:'Carbon', col:'#0e0e10', hi:'#4a4d52', carbon:true},
+  kristall: {name:'Kristall', col:'#1f5f82', hi:'#d6f5ff'},
+};
+const CARS = {
+  hatch:  {name:'Kompaktwagen', mass:1250, drag:.36, wx:72, wr:21, ex:[-118,-21], hood:[82,-50],
+           path:'M-112 -18 L-114 -50 Q-112 -80 -94 -86 L2 -90 Q36 -90 58 -62 L104 -52 Q118 -48 118 -32 L116 -18 Z',
+           win:'M-100 -58 Q-98 -80 -86 -82 L0 -84 Q28 -84 46 -62 Z', pillar:[-6, -84, -6, -60]},
+  coupe:  {name:'Sportcoupé', mass:1450, drag:.34, wx:78, wr:22, ex:[-126,-22], hood:[86,-55],
+           path:'M-120 -18 L-122 -44 Q-118 -56 -100 -58 L-60 -62 Q-35 -92 5 -92 Q40 -92 62 -64 L108 -54 Q122 -50 122 -34 L120 -18 Z',
+           win:'M-50 -64 Q-30 -85 4 -85 Q33 -85 51 -65 Z', pillar:[2, -85, 2, -64]},
+  muscle: {name:'Muscle Car', mass:1650, drag:.45, wx:82, wr:24, ex:[-134,-20], hood:[92,-52], scoop:true,
+           path:'M-128 -18 L-130 -50 L-72 -54 Q-46 -84 -6 -84 Q24 -84 44 -58 L126 -50 L128 -18 Z',
+           win:'M-64 -57 Q-42 -79 -6 -79 Q20 -79 36 -58 Z', pillar:[-10, -79, -10, -57]},
+  super:  {name:'Supersportwagen (Mittelmotor)', mass:1400, drag:.3, wx:76, wr:22, ex:[-128,-26], hood:[-78,-58], wing:true,
+           path:'M-122 -20 L-124 -46 Q-100 -54 -62 -60 Q-22 -80 14 -78 Q46 -72 82 -46 L120 -36 Q128 -32 124 -20 Z',
+           win:'M-52 -62 Q-20 -76 12 -74 Q38 -69 62 -50 Z'},
+  kombi:  {name:'Kombi', mass:1600, drag:.4, wx:80, wr:22, ex:[-126,-22], hood:[90,-50],
+           path:'M-120 -18 L-121 -60 Q-118 -88 -100 -90 L20 -90 Q45 -88 64 -62 L110 -52 Q122 -48 122 -32 L120 -18 Z',
+           win:'M-110 -62 Q-108 -83 -96 -84 L18 -84 Q38 -82 52 -62 Z', pillar:[-40, -84, -40, -62]},
+  pickup: {name:'Pickup', mass:2100, drag:.55, wx:84, wr:27, ex:[-134,-22], hood:[94,-60], bed:true,
+           path:'M-130 -24 L-130 -62 L-32 -62 L-30 -100 L22 -100 Q42 -98 52 -66 L118 -60 Q130 -56 130 -38 L128 -24 Z',
+           win:'M-22 -94 L18 -94 Q34 -92 42 -68 L-22 -68 Z'},
+  supra:  {name:'Toyota Supra Mk4 (A80)', mass:1510, drag:.31, wx:78, wr:22, ex:[-124,-22], hood:[88,-54], wing:true,
+           path:'M-120 -18 L-122 -44 Q-118 -56 -100 -58 L-60 -62 Q-35 -92 5 -92 Q40 -92 62 -64 L108 -54 Q122 -50 122 -34 L120 -18 Z',
+           win:'M-50 -64 Q-30 -85 4 -85 Q33 -85 51 -65 Z', pillar:[2, -85, 2, -64]},
+  rally:  {name:'Rallye-Auto', mass:1230, drag:.4, wx:72, wr:22, ex:[-118,-20], hood:[82,-50], rally:true,
+           path:'M-112 -18 L-114 -50 Q-112 -80 -94 -86 L2 -90 Q36 -90 58 -62 L104 -52 Q118 -48 118 -32 L116 -18 Z',
+           win:'M-100 -58 Q-98 -80 -86 -82 L0 -84 Q28 -84 46 -62 Z', pillar:[-6, -84, -6, -60]},
+  twingo: {name:'Renault Twingo (1. Generation)', mass:790, drag:.35, wx:60, wr:19, ex:[-98,-20], hood:[66,-54], twingo:true,
+           path:'M-92 -18 L-94 -48 Q-92 -84 -70 -88 L30 -88 Q56 -86 74 -60 Q88 -54 90 -36 L88 -18 Z',
+           win:'M-82 -60 Q-80 -80 -66 -82 L26 -82 Q44 -80 58 -60 Z', pillar:[-10, -82, -10, -60]},
+  // GT3-Karosserien: Silhouette und Lackierung an das jeweilige echte Auto angelehnt
+  r8lms:   {name:'Audi R8 LMS GT3 evo II (Audi Sport Livery)', group:'GT3 & Rennsport', mass:1270, drag:.36, wx:76, wr:23, ex:[-128,-28], hood:[-78,-58], bigWing:true, splitter:true,
+           path:'M-124 -20 L-126 -48 Q-104 -56 -66 -60 Q-30 -82 10 -80 Q46 -74 84 -48 L122 -38 Q130 -34 126 -20 Z',
+           win:'M-56 -62 Q-26 -78 8 -76 Q38 -71 62 -52 Z',
+           livery:{bands:[[-30,6,'#111316']], slash:[[-24,14,'#c8321a',22],[-8,5,'#111316',22]], num:'1', numAt:[40,-40]}},
+  huracan: {name:'Lamborghini Huracán GT3 EVO2 (ABT Livery)', group:'GT3 & Rennsport', mass:1250, drag:.35, wx:76, wr:23, ex:[-126,-28], hood:[-80,-56], bigWing:true, splitter:true,
+           path:'M-124 -20 L-126 -44 Q-108 -52 -74 -58 Q-40 -78 0 -76 Q34 -72 70 -48 L122 -34 Q130 -30 126 -20 Z',
+           win:'M-62 -60 Q-34 -74 -2 -72 Q30 -68 52 -50 Z',
+           livery:{slash:[[-70,10,'#a4d61c',-20],[-56,4,'#f2f0ea',-20],[34,8,'#a4d61c',-20]], bands:[[-28,4,'#a4d61c']], num:'7', numAt:[8,-40], numBg:'#a4d61c', numCol:'#111', wingCol:'#111316'}},
+  f296:    {name:'Ferrari 296 GT3 (AF Corse Livery)', group:'GT3 & Rennsport', mass:1260, drag:.36, wx:76, wr:23, ex:[-126,-28], hood:[-78,-58], bigWing:true, splitter:true,
+           path:'M-122 -20 L-124 -46 Q-104 -56 -70 -60 Q-38 -82 -2 -82 Q34 -80 62 -54 Q98 -44 122 -36 Q130 -32 126 -20 Z',
+           win:'M-60 -62 Q-34 -77 -2 -76 Q28 -74 50 -56 Z',
+           livery:{bands:[[-42,4,'#f5e04a'],[-38,8,'#f2f0ea']], slash:[[-104,10,'#111316',12]], num:'51', numAt:[30,-42]}},
+  gt3r:    {name:'Porsche 911 GT3 R (Manthey „Grello“ Livery)', group:'GT3 & Rennsport', mass:1260, drag:.37, wx:74, wr:23, ex:[-124,-24], hood:[-100,-62], bigWing:true, splitter:true,
+           path:'M-118 -20 L-120 -44 Q-118 -60 -100 -68 Q-70 -92 -20 -92 Q20 -92 48 -66 L108 -52 Q124 -48 124 -32 L122 -18 Z',
+           win:'M-78 -72 Q-52 -86 -20 -86 Q12 -86 38 -66 Z', pillar:[-20, -86, -20, -68],
+           livery:{slash:[[10,200,'#f3e51c',30],[-4,12,'#1f8f3a',30]], bands:[[-26,5,'#1f8f3a']], num:'911', numAt:[-44,-40], numBg:'#f3e51c', wingCol:'#1f8f3a'}},
+  rsr:     {name:'Porsche 911 RSR-19 (Porsche GT Team Livery)', group:'GT3 & Rennsport', mass:1245, drag:.36, wx:76, wr:23, ex:[-126,-24], hood:[-102,-62], bigWing:true, splitter:true,
+           path:'M-120 -20 L-122 -44 Q-120 -60 -102 -68 Q-72 -90 -22 -90 Q18 -90 46 -66 L110 -52 Q126 -48 126 -32 L124 -18 Z',
+           win:'M-80 -72 Q-54 -84 -22 -84 Q10 -84 36 -66 Z', pillar:[-22, -84, -22, -68],
+           livery:{bands:[[-46,4,'#111316']], slash:[[-22,22,'#c8321a',-30],[4,7,'#111316',-30]], num:'91', numAt:[-44,-44]}},
+  amg:     {name:'Mercedes-AMG GT3 Evo (AMG Team Livery)', group:'GT3 & Rennsport', mass:1285, drag:.37, wx:80, wr:23, ex:[-124,-20], hood:[92,-54], bigWing:true, splitter:true,
+           path:'M-118 -18 L-120 -46 Q-116 -58 -98 -62 L-82 -64 Q-62 -90 -22 -90 Q10 -90 30 -66 L110 -54 Q128 -50 130 -34 L128 -18 Z',
+           win:'M-74 -66 Q-56 -84 -22 -84 Q4 -84 22 -66 Z', pillar:[-24, -84, -24, -66],
+           livery:{bands:[[-34,16,'#111316'],[-35,2,'#c8321a']], slash:[[40,8,'#c8321a',20]], num:'4', numAt:[-4,-48], numBg:'#111316', numCol:'#f2f0ea'}},
+  m4gt3:   {name:'BMW M4 GT3 (BMW M Motorsport Livery)', group:'GT3 & Rennsport', mass:1300, drag:.38, wx:80, wr:23, ex:[-128,-20], hood:[90,-52], bigWing:true, splitter:true, grille:true,
+           path:'M-122 -18 L-124 -46 Q-120 -58 -102 -60 L-70 -62 Q-44 -90 -4 -90 Q32 -90 54 -64 L112 -54 Q126 -50 128 -36 L128 -18 Z',
+           win:'M-60 -64 Q-38 -84 -4 -84 Q26 -84 44 -65 Z', pillar:[-4, -84, -4, -64],
+           livery:{slash:[[-44,9,'#4aa3df',24],[-34,9,'#17356f',24],[-24,9,'#e2231a',24]], bands:[[-24,3,'#111316']], num:'1', numAt:[30,-42]}},
+  m3comp:  {name:'BMW M3 Competition G80 (M Comp Livery)', group:'GT3 & Rennsport', mass:1730, drag:.33, wx:80, wr:22, ex:[-126,-20], hood:[90,-52], grille:true, lip:true, quad:true,
+           path:'M-122 -18 L-124 -48 Q-120 -58 -104 -60 L-78 -62 Q-54 -92 -10 -92 Q30 -92 54 -64 L110 -54 Q124 -50 124 -34 L122 -18 Z',
+           win:'M-72 -64 Q-50 -85 -10 -85 Q24 -85 44 -65 Z', pillar:[-14, -85, -14, -64], pillar2:[-60, -64, -66, -63],
+           livery:{bands:[[-26,2,'#4aa3df'],[-24,2,'#17356f'],[-22,2,'#e2231a']], slash:[[54,4,'#4aa3df',6],[59,4,'#17356f',6],[64,4,'#e2231a',6]]}},
+  vantage: {name:'Aston Martin Vantage GT3 (AMR Livery)', group:'GT3 & Rennsport', mass:1290, drag:.37, wx:80, wr:23, ex:[-124,-20], hood:[92,-54], bigWing:true, splitter:true,
+           path:'M-120 -18 L-122 -44 Q-118 -56 -100 -66 Q-70 -88 -30 -88 Q6 -88 30 -66 L110 -54 Q126 -50 128 -34 L126 -18 Z',
+           win:'M-80 -68 Q-58 -82 -30 -82 Q0 -82 20 -66 Z', pillar:[-32, -82, -32, -68],
+           livery:{slash:[[-54,10,'#b9e35a',-28],[-42,4,'#f2f0ea',-28]], bands:[[-24,3,'#b9e35a']], num:'95', numAt:[0,-44], numBg:'#b9e35a', numCol:'#0f2a1c'}},
+  rcf:     {name:'Lexus RC F GT3 (Vasser Sullivan Livery)', group:'GT3 & Rennsport', mass:1300, drag:.38, wx:80, wr:23, ex:[-126,-20], hood:[90,-56], bigWing:true, splitter:true,
+           path:'M-122 -18 L-124 -50 Q-120 -60 -104 -62 L-72 -64 Q-48 -92 -8 -92 Q30 -92 50 -66 L110 -56 Q126 -52 128 -36 L126 -18 Z',
+           win:'M-62 -66 Q-42 -86 -8 -86 Q24 -86 40 -67 Z', pillar:[-8, -86, -8, -66],
+           livery:{slash:[[-14,26,'#c8321a',-36],[16,10,'#111316',-36]], bands:[[-24,4,'#111316']], num:'14', numAt:[-46,-42]}},
+  bentley: {name:'Bentley Continental GT3 (M-Sport Livery)', group:'GT3 & Rennsport', mass:1320, drag:.39, wx:82, wr:24, ex:[-130,-20], hood:[94,-58], bigWing:true, splitter:true,
+           path:'M-126 -18 L-128 -50 Q-124 -62 -106 -64 L-76 -66 Q-52 -94 -8 -94 Q34 -94 58 -66 L114 -56 Q130 -52 130 -36 L128 -18 Z',
+           win:'M-66 -68 Q-46 -88 -8 -88 Q28 -88 46 -68 Z', pillar:[-6, -88, -6, -68],
+           livery:{bands:[[-48,4,'#c9a54a'],[-24,3,'#c9a54a']], slash:[[-96,14,'#8dc63f',20]], num:'7', numAt:[30,-44], numBg:'#c9a54a', numCol:'#0e3d2a'}},
+  mcl720:  {name:'McLaren 720S GT3 Evo (Papaya Livery)', group:'GT3 & Rennsport', mass:1250, drag:.35, wx:76, wr:23, ex:[-126,-28], hood:[-80,-56], bigWing:true, splitter:true,
+           path:'M-124 -20 L-126 -44 Q-110 -54 -76 -58 Q-46 -80 -6 -80 Q30 -78 58 -54 Q96 -44 122 -36 Q130 -32 126 -20 Z',
+           win:'M-66 -60 Q-40 -74 -6 -74 Q24 -73 48 -56 Z',
+           livery:{bands:[[-32,14,'#111316']], slash:[[28,10,'#111316',26]], num:'59', numAt:[-4,-44], wingCol:'#111316'}},
+  nsx:     {name:'Honda NSX GT3 Evo22 (Honda Racing Livery)', group:'GT3 & Rennsport', mass:1270, drag:.36, wx:76, wr:23, ex:[-126,-28], hood:[-78,-58], bigWing:true, splitter:true,
+           path:'M-122 -20 L-124 -46 Q-104 -56 -66 -60 Q-36 -80 4 -80 Q40 -76 74 -50 L120 -38 Q128 -34 124 -20 Z',
+           win:'M-56 -62 Q-30 -75 2 -74 Q32 -70 56 -52 Z',
+           livery:{slash:[[-34,10,'#c8321a',28],[-22,10,'#1f6fd1',28]], bands:[[-30,4,'#111316']], num:'30', numAt:[24,-42]}},
+  mustang: {name:'Ford Mustang GT3 (Ford Performance Livery)', group:'GT3 & Rennsport', mass:1320, drag:.4, wx:82, wr:24, ex:[-130,-20], hood:[94,-54], bigWing:true, splitter:true,
+           path:'M-126 -18 L-128 -48 Q-124 -58 -104 -62 Q-72 -88 -24 -88 Q14 -88 40 -62 L112 -54 Q128 -50 130 -34 L128 -18 Z',
+           win:'M-88 -66 Q-66 -82 -24 -82 Q6 -82 28 -64 Z', pillar:[-26, -82, -26, -66],
+           livery:{slash:[[-24,10,'#f2f0ea',18],[-12,10,'#c8321a',18]], bands:[[-24,3,'#f2f0ea']], num:'64', numAt:[20,-44]}},
+};
+const COLORS = [['#c8321a','Rot'], ['#f5a524','Gelb'], ['#1f6fd1','Blau'], ['#2f7d4a','Grün'], ['#e9e6df','Weiss'], ['#26292d','Schwarz'], ['#9aa3ad','Silber'], ['#6b3fa0','Violett']];
+const SELECTS = {car:CARS, engine:ENGINES, exhaust:EXHAUSTS, intake:INTAKES, turbo:TURBOS, bov:BOVS, gearbox:GEARBOXES, lever:LEVERS, knob:KNOBS};
+
+const PRESETS = [
+  ['Renault Twingo',  {car:'twingo', color:'#f5a524', engine:'r3', exhaust:'serie', intake:'serie', turbo:'none', gearbox:'h5', lever:'serie', knob:'leder'}],
+  ['Hot Hatch',       {car:'hatch', color:'#c8321a', engine:'r4', exhaust:'sport', intake:'sport', turbo:'klein', bov:'pssh', boostMax:1.1, gearbox:'h6', lever:'short', knob:'rot'}],
+  ['JDM Reihen-6',    {car:'coupe', color:'#e9e6df', engine:'r6', exhaust:'titan', intake:'pilz', turbo:'gross', bov:'pssh', boostMax:1.5, gearbox:'h6', lever:'short', knob:'alu'}],
+  ['Rallye-Boxer',    {car:'rally', color:'#1f6fd1', engine:'boxer', exhaust:'straight', intake:'sport', turbo:'klein', bov:'flutter', boostMax:1.3, gearbox:'seq', lever:'serie', knob:'leder'}],
+  ['Muscle-Car V8',   {car:'muscle', color:'#f5a524', engine:'v8x', exhaust:'straight', intake:'ramair', turbo:'none', gearbox:'h6', lever:'serie', knob:'holz'}],
+  ['Kompressor-V8',   {car:'muscle', color:'#26292d', engine:'v8x', exhaust:'sport', intake:'pilz', turbo:'kompressor', boostMax:.8, gearbox:'h6', lever:'short', knob:'carbon'}],
+  ['Italo V12',       {car:'super', color:'#c8321a', engine:'v12', exhaust:'klappe', intake:'itb', turbo:'none', gearbox:'h6', lever:'gated', knob:'alu'}],
+  ['Supersportler V10', {car:'super', color:'#2f7d4a', engine:'v10', exhaust:'titan', intake:'itb', turbo:'none', gearbox:'dsg', lever:'serie', knob:'carbon'}],
+  ['Flatplane V8',    {car:'super', color:'#9aa3ad', engine:'v8f', exhaust:'titan', intake:'itb', turbo:'bi', bov:'umluft', boostMax:.9, gearbox:'dsg', lever:'serie', knob:'carbon'}],
+  ['Toyota Supra Mk4', {car:'supra', color:'#26292d', engine:'2jz', exhaust:'titan', intake:'pilz', turbo:'bi', bov:'flutter', boostMax:1.4, gearbox:'h6', lever:'short', knob:'alu'}],
+  ['Wankel Brap',     {car:'coupe', color:'#6b3fa0', engine:'wankel', exhaust:'straight', intake:'pilz', turbo:'bi', bov:'flutter', boostMax:1, gearbox:'h5', lever:'short', knob:'kristall'}],
+  ['Audi R8 LMS GT3',        {gt3:true, car:'r8lms', color:'#e9e6df', engine:'v10gt3', exhaust:'gt3', intake:'restrictor', turbo:'none', gearbox:'gt3', knob:'carbon'}],
+  ['Lamborghini Huracán GT3', {gt3:true, car:'huracan', color:'#1c1f22', engine:'v10gt3', exhaust:'gt3', intake:'itb', turbo:'none', gearbox:'gt3', knob:'carbon'}],
+  ['Ferrari 296 GT3',       {gt3:true, car:'f296', color:'#c8321a', engine:'f296', exhaust:'gt3', intake:'restrictor', turbo:'bi', bov:'umluft', boostMax:1.1, gearbox:'gt3', knob:'carbon'}],
+  ['Porsche 911 GT3 R „Grello“', {gt3:true, car:'gt3r', color:'#b9e02a', engine:'gt3r', exhaust:'titan', intake:'restrictor', turbo:'none', gearbox:'gt3', knob:'alu'}],
+  ['Porsche 911 RSR',       {gt3:true, car:'rsr', color:'#e9e6df', engine:'rsr', exhaust:'titan', intake:'itb', turbo:'none', gearbox:'gt3', knob:'alu'}],
+  ['Mercedes-AMG GT3',      {gt3:true, car:'amg', color:'#9aa3ad', engine:'amg', exhaust:'gt3', intake:'restrictor', turbo:'none', gearbox:'gt3', knob:'carbon'}],
+  ['BMW M4 GT3',            {gt3:true, car:'m4gt3', color:'#e9e6df', engine:'m4gt3', exhaust:'gt3', intake:'restrictor', turbo:'bi', bov:'pssh', boostMax:1.1, gearbox:'gt3', knob:'carbon'}],
+  ['BMW M3 Competition',    {gt3:true, car:'m3comp', color:'#1d7a5a', engine:'m3comp', exhaust:'klappe', intake:'sport', turbo:'bi', bov:'umluft', boostMax:1, gearbox:'dsg', knob:'leder'}],
+  ['Aston Martin Vantage GT3', {gt3:true, car:'vantage', color:'#0f5a3c', engine:'vantage', exhaust:'gt3', intake:'restrictor', turbo:'bi', bov:'umluft', boostMax:1, gearbox:'gt3', knob:'leder'}],
+  ['Lexus RC F GT3',        {gt3:true, car:'rcf', color:'#e9e6df', engine:'rcf', exhaust:'gt3', intake:'itb', turbo:'none', gearbox:'gt3', knob:'carbon'}],
+  ['Bentley Continental GT3', {gt3:true, car:'bentley', color:'#0e3d2a', engine:'bentley', exhaust:'gt3', intake:'restrictor', turbo:'gross', bov:'umluft', boostMax:1, gearbox:'gt3', knob:'holz'}],
+  ['McLaren 720S GT3',      {gt3:true, car:'mcl720', color:'#ff7f1f', engine:'mcl720', exhaust:'gt3', intake:'restrictor', turbo:'bi', bov:'pssh', boostMax:1.1, gearbox:'gt3', knob:'carbon'}],
+  ['Honda NSX GT3',         {gt3:true, car:'nsx', color:'#e9e6df', engine:'nsx', exhaust:'gt3', intake:'restrictor', turbo:'bi', bov:'pssh', boostMax:1.1, gearbox:'gt3', knob:'carbon'}],
+  ['Ford Mustang GT3',      {gt3:true, car:'mustang', color:'#1f4fd1', engine:'mustang', exhaust:'straight', intake:'restrictor', turbo:'none', gearbox:'gt3', knob:'carbon'}],
+  ['Diesel',          {car:'pickup', color:'#9aa3ad', engine:'diesel', exhaust:'serie', intake:'serie', turbo:'gross', bov:'umluft', boostMax:1.6, gearbox:'h5', lever:'serie', knob:'leder'}],
+];
+
+// ---------------- Zustand ----------------
+const S = {
+  cfg: {car:'hatch', color:'#c8321a', engine:'r4', exhaust:'sport', intake:'sport', turbo:'klein', bov:'pssh', boostMax:1.1, gearbox:'h6', lever:'short', knob:'rot',
+        pops:1, view:'aussen', look:'grafik', src:'synth', dashStyle:'gt3', shiftMode:'manuell', wheelCirc:2.01, custom:null, vol:.8, mixEx:1, mixIn:1, mixTu:1, mixMech:1, mixRoad:1, mixShift:1, mixGear:.6, mixBang:1.5},
+  we:0, v:0, dist:0, gear:0, shift:null,
+  throttle:0, brake:0, clutch:0, clutchEng:0, thrEff:0, map:0, fuelCut:false, Tc:0,
+  dmg:{engine:0, clutch:0, gear:0, turbo:0}, temp:70, blown:false, knock:0, slipN:0, smoke:[], blowT:0, warn:{}, revWarnT:0,
+  running:false, starting:0, grace:0, flare:0, cut:false, boost:0, bovArmed:false, flame:0,
+  kbd:{gas:false, brake:false, clutch:false}, mouse:{gas:0, brake:0, clutch:0}, autoT:0, dnT:[], pumpAt:0,
+};
+const eng = () => ENGINES[S.cfg.engine];
+// Wie laut die Knaller je nach Auspuff sind (Serie gedämpft, offene Rennauspuffe laut)
+const BANG_LOUD = {serie:.35, sport:1, klappe:1.15, straight:2.2, gt3:1.8, titan:1.6};
+const bangLoud = () => BANG_LOUD[S.cfg.exhaust] ?? 1;
+// Getriebe mit Customizer-Werten (eigene Übersetzungen / Achsantrieb) überlagern
+const gbox = () => { const b = GEARBOXES[S.cfg.gearbox], c = S.cfg.custom; return c && c.box === S.cfg.gearbox ? Object.assign({}, b, {ratios: c.ratios, final: c.final}) : b; };
+const turbo = () => TURBOS[S.cfg.turbo];
+const car = () => CARS[S.cfg.car] || CARS.coupe;
+const gearName = g => g === -1 ? 'R' : g === 0 ? 'N' : String(g);
+function ratioOf(g) { const GB = gbox(); return g > 0 ? GB.ratios[g - 1] * GB.final : g === -1 ? -REV * GB.final : 0; }
+function torqueAt(E, rpm) { return E.torque * Math.max(.42, 1 - ((rpm - E.peak) / E.spread) ** 2) * clamp(rpm / 900, .6, 1); }
+function modTorque() { return EXHAUSTS[S.cfg.exhaust].torque * INTAKES[S.cfg.intake].torque; }
+function boostGain() { const T = turbo(); return T.type === 'none' ? 0 : S.cfg.boostMax * .75 * T.gain; }
+
+// ---------------- Physik ----------------
+function physStep(dt) {
+  const E = eng(), GB = gbox(), T = turbo(), C = car(), D = S.dmg;
+  const MASS = C.mass, DRAG = C.drag * 1.26, ROLL = C.mass * .13;
+  let rpm = S.we * RPM;
+
+  if (S.starting > 0) {
+    S.starting -= dt;
+    if (S.starting <= 0) {
+      if (rpm > 150) { S.running = true; S.flare = 1; S.grace = 1.2; }
+      else toast('Startversuch fehlgeschlagen');
+    }
+  }
+  S.flare = Math.max(0, S.flare - dt * .5);
+  S.grace = Math.max(0, S.grace - dt);
+
+  if (rpm > E.red) S.cut = true; else if (S.cut && rpm < E.red - 180) S.cut = false;
+
+  let upCut = false;
+  if (S.shift) {
+    S.shift.t -= dt;
+    upCut = S.shift.up;
+    if (S.shift.t <= 0) { S.gear = S.shift.to; S.shift = null; upCut = false; }
+  }
+
+  const idleTarget = E.idle + S.flare * 500;
+  const idleThr = S.running ? clamp((idleTarget - rpm) / 250, 0, rpm < E.idle * .7 ? 1 : .45) : 0;
+  const thr = upCut ? 0 : S.throttle;
+  // Zwischengas beim Runterschalten (Rev-Matching)
+  const blip = S.shift && !S.shift.up && S.shift.to > 0 && S.running && GB.type !== 'h' ? (GB.blip || .5) : 0;
+  const thrEff = Math.max(thr, idleThr, blip);
+  S.thrEff = thrEff;
+
+  if (T.type === 'turbo') {
+    const tgt = S.running ? thr * smooth(T.on, T.full, rpm) * (1 - D.turbo) : 0;
+    S.boost += (tgt - S.boost) * (1 - Math.exp(-dt / (tgt > S.boost ? T.lag : .35)));
+  } else if (T.type === 'sc') {
+    const tgt = S.running ? thr * clamp(rpm / (E.red * .7), 0, 1) * (1 - D.turbo) : 0;
+    S.boost += (tgt - S.boost) * (1 - Math.exp(-dt / .05));
+  } else S.boost = 0;
+
+  const comb = (S.running && !S.cut && !upCut) ? torqueAt(E, rpm) * thrEff * (1 + S.boost * boostGain()) * modTorque() * (1 - .45 * D.engine) : 0;
+  const fric = E.torque * (.035 + rpm * .000018 + (1 - thrEff) * rpm * .00003) * clamp(S.we / 3, 0, 1) * (S.blown ? 6 : 1);
+  const starter = S.starting > 0 ? E.torque * .35 * clamp((260 - rpm) / 80, 0, 1) : 0;
+  const Te = comb + starter - fric;
+
+  const G = ratioOf(S.gear);
+  if (GB.paddle || S.cfg.shiftMode === 'auto') {
+    const wheelRpm = Math.abs(G * S.v / WR * RPM);
+    const tgt = (G === 0 || !S.running || (S.cfg.shiftMode === 'auto' && S.autoT > .18)) ? 0 : Math.max(smooth(E.idle + 150, E.idle + 1800, rpm), wheelRpm > E.idle + 150 ? 1 : 0);
+    S.clutchEng += (tgt - S.clutchEng) * Math.min(1, dt * (tgt < S.clutchEng ? 70 : 12));   // Auskuppeln schnell, Einkuppeln weich
+  } else {
+    S.clutchEng = clamp((.85 - S.clutch) / .55, 0, 1);
+  }
+
+  const Fr = (ROLL + S.brake * BRAKE) * clamp(S.v / .3, -1, 1) + DRAG * S.v * Math.abs(S.v);
+  const I = E.inertia;
+  let Tc = 0;
+  if (G !== 0 && S.clutchEng > .001) {
+    // Kupplungsmoment, das den Schlupf in diesem Schritt auf null bringt – begrenzt durch die Kupplungskapazität
+    const cap = S.clutchEng * (E.torque * (1 + boostGain()) * 1.7 + 40) * (1 - .7 * D.clutch);
+    const slip = S.we - G * S.v / WR;
+    const Treq = (slip / dt + Te / I + G * Fr / (WR * MASS)) / (1 / I + G * G / (WR * WR * MASS));
+    Tc = clamp(Treq, -cap, cap);
+  }
+  // Kupplungsverschleiss durch Reibleistung
+  const slipP = G !== 0 ? Math.abs(Tc * (S.we - G * S.v / WR)) : 0;
+  D.clutch = Math.min(1, D.clutch + dt * slipP * 3.3e-7);
+  S.slipN = clamp(slipP / 60000, 0, 1);
+  S.we = Math.max(0, S.we + dt * (Te - Tc) / I);
+  S.v += dt * (Tc * G / WR - Fr) / MASS;
+  if (S.brake > .05 && Math.abs(S.v) < .01 && Math.abs(Tc) < 1) S.v = 0;
+  S.dist += S.v * dt;
+
+  // Seq/DSG: Drehzahl während des Schaltvorgangs an den Zielgang anpassen (Zwischengas / Drehzahlabfall)
+  if (S.shift && S.running) {
+    const target = Math.abs(ratioOf(S.shift.to) * S.v / WR);
+    if (target * RPM > E.idle * .9) S.we += (target - S.we) * Math.min(1, dt * 35);
+  }
+
+  rpm = S.we * RPM;
+  if (S.running && S.starting <= 0 && S.grace <= 0 && rpm < E.idle * .35) {
+    S.running = false; S.cut = false;
+    toast(GB.type === 'seq' ? 'Abgewürgt! Zum Anfahren Kupplung (Leertaste) halten – Z = Starten' : 'Motor abgewürgt! Z = neu starten');
+  }
+  S.Tc = Tc;
+  damageStep(dt, rpm, thrEff, thr, G, Tc);
+  S.fuelCut = S.running && !blip && (upCut || (S.throttle < .02 && idleThr === 0 && rpm > E.idle + 400));
+  S.map = S.running ? (S.fuelCut ? .2 : .25 + .75 * thrEff) + (T.type === 'none' ? 0 : S.boost * S.cfg.boostMax) : 0;
+}
+
+// ---------------- Schäden ----------------
+function damageStep(dt, rpm, thrEff, thr, G, Tc) {
+  const E = eng(), T = turbo(), GB = gbox(), D = S.dmg, W = S.warn;
+  // Kühlwasser: Last und Begrenzer heizen, Fahrtwind kühlt
+  const heat = S.running ? .4 + 3 * (rpm / E.red) ** 3 * (.3 + .7 * thrEff) + (S.cut ? 2 : 0) + S.boost * S.cfg.boostMax * 1.2 : 0;
+  const k = .04 + Math.abs(S.v) * .003;
+  S.temp += dt * (heat * .6 - k * (S.temp - (S.running ? 88 : 20)) * (S.temp > 88 || !S.running ? 1 : .15));
+  if (S.temp > 118) D.engine += dt * (S.temp - 118) * .004;
+  if (S.temp > 112 && !W.hot) { W.hot = true; toast('Motor wird zu heiss! Gas weg, fahren lassen'); }
+  if (S.temp < 100) W.hot = false;
+  // Überdrehen (z.B. zu tief runtergeschaltet)
+  if (rpm > E.red * 1.08) {
+    D.engine += dt * (rpm / E.red - 1.08) * 6;
+    if (S.revWarnT <= 0) { toast(`Überdreht! ${Math.round(rpm)} U/min`); S.revWarnT = 2; }
+  }
+  S.revWarnT -= dt;
+  // Klopfen bei zu viel Ladedruck / Hitze
+  S.knock = S.running && !S.cut ? clamp((T.type !== 'none' ? Math.max(0, S.cfg.boostMax - 1.6) * S.boost : 0) * thr + Math.max(0, S.temp - 110) * .02 * thr, 0, 1) : 0;
+  D.engine += dt * S.knock * .03;
+  if (S.knock > .15 && !W.knock) { W.knock = true; toast(S.temp > 110 ? 'Motor klingelt – er ist zu heiss' : 'Motor klingelt – zu viel Ladedruck'); }
+  if (S.knock < .05) W.knock = false;
+  if (T.type !== 'none') {
+    D.turbo += dt * (Math.max(0, S.cfg.boostMax - 1.5) * S.boost * .012 + (S.temp > 115 ? .01 * S.boost : 0));
+    if (D.turbo >= 1 && !W.turbo) { W.turbo = true; toast('Turbo geplatzt! Kein Ladedruck mehr'); AU.klack(1, true); }
+  }
+  if (D.gear >= 1 && G !== 0 && Math.abs(Tc) > E.torque * .4 && Math.random() < dt * .4) {
+    S.gear = 0; if (GB.type === 'h') K.y = 0; AU.grind(); toast('Gang rausgesprungen – das Getriebe ist hinüber');
+  }
+  for (const key in D) D[key] = clamp(D[key], 0, 1);
+  if (D.engine >= 1 && !S.blown) {
+    S.blown = true; S.running = false; S.starting = 0; S.cut = false; S.we *= .3; S.blowT = 5;
+    AU.blow(); toast('Motorschaden! Pleuel durch den Block – ab in die Werkstatt');
+  }
+}
+function repair() {
+  AU.init();
+  S.dmg = {engine:0, clutch:0, gear:0, turbo:0}; S.blown = false; S.warn = {}; S.temp = Math.min(S.temp, 88);
+  AU.klack(.5); toast('Repariert – alles wie neu');
+}
+
+// ---------------- Schalten ----------------
+const K = {x:.5, y:0, drag:false, blocked:0};   // H-Schaltknauf (Kulissen-Koordinaten)
+const SQ = {y:0, drag:false, fired:false};      // sequentieller Hebel
+const PAD = {l:0, r:0};                          // Schaltwippen
+
+function hUpdate() {
+  const gate = GATES[S.cfg.gearbox], LV = LEVERS[S.cfg.lever], th = LV.engage;
+  const col = gate.cols.find(c => c.x === K.x);
+  let g = 0;
+  if (col) { if (K.y <= -th && col.up != null) g = col.up; else if (K.y >= th && col.down != null) g = col.down; }
+  if (g === S.gear) return;
+  if (g === 0) { S.gear = 0; return; }
+  S.gear = 0;
+  const kmh = S.v * 3.6;
+  let reason = null;
+  if (S.running && S.clutchEng > .3 && S.cfg.shiftMode !== 'auto') reason = 'Kupplung treten! (Leertaste)';
+  if ((g === -1 && kmh > 3) || (g > 0 && kmh < -3)) reason = 'Falsche Richtung bei Fahrt – KRRRK!';
+  if (reason) {
+    AU.grind(); toast(reason); S.dmg.gear = Math.min(1, S.dmg.gear + .06);
+    K.blocked = Math.sign(K.y);
+    K.y = K.blocked * (th - .25);
+    return;
+  }
+  S.gear = g;
+  AU.klack(LV.klack);
+}
+function hSetGear(g) {
+  const gate = GATES[S.cfg.gearbox];
+  if (g === 0) { K.y = 0; hUpdate(); return; }
+  const col = gate.cols.find(c => c.up === g || c.down === g);
+  if (!col) return;
+  K.blocked = 0; K.x = col.x; K.y = col.up === g ? -1 : 1;
+  hUpdate();
+}
+function hShiftDir(dir) {
+  const GB = gbox(), cur = S.gear;
+  let to = cur === -1 ? (dir > 0 ? 0 : null) : cur === 0 ? (dir > 0 ? 1 : -1) : cur + dir;
+  if (to == null || to > GB.ratios.length) return;
+  hSetGear(to);
+}
+function shiftDir(dir) {
+  AU.init();
+  const GB = gbox();
+  if (GB.type === 'h') { hShiftDir(dir); return; }
+  if (S.shift) return;
+  const cur = S.gear, max = GB.ratios.length, kmh = Math.abs(S.v) * 3.6;
+  let to;
+  if (dir > 0) { if (cur === -1) to = 0; else if (cur >= max) return; else to = cur + 1; }
+  else { if (cur === -1) return; if (cur === 0) { if (kmh > 3) { toast('Rückwärtsgang nur im Stand'); return; } to = -1; } else to = cur - 1; }
+  const neutralMove = cur <= 0 || to <= 0;
+  // Elektronik sperrt Runterschalten, wenn der Motor im kleineren Gang überdrehen würde
+  if (GB.paddle && dir < 0 && to > 0 && Math.abs(ratioOf(to) * S.v / WR) * RPM > eng().red * 1.02) { toast('Runterschalten gesperrt – Drehzahl wäre zu hoch'); return; }
+  const up = dir > 0 && !neutralMove;
+  S.shift = {to, t: neutralMove ? .12 : (!up && GB.downTime) || GB.shiftTime, up};
+  S.gear = 0;
+  const race = GB.type === 'gt3' || GB.type === 'seq';
+  SMP.clack(up, GB.type === 'dsg' ? .45 : race ? 1 : .7);
+  AU.shift(GB.type === 'dsg' ? .55 : race ? 1 : .8, up);
+  if (S.running && !neutralMove && SMP.active() && S.we * RPM > eng().idle + 800) {
+    if (up) SMP.cut(GB.shiftTime + (race ? .05 : .02));   // Zündunterbruch
+    else if (race) SMP.blip();
+  }
+  if (S.running && S.cfg.pops > 0 && !neutralMove) {
+    const pm = S.cfg.pops, rpmN = S.we * RPM / eng().red;
+    // Hochschalten unter Last: Zündunterbruch lässt unverbranntes Gemisch im Auspuff knallen
+    if (up && S.throttle > .35 && rpmN > .55 && Math.random() < (race || GB.paddle ? .9 : .45) * Math.min(1, pm)) SMP.bang(race ? 1 + (Math.random() < .35 ? 1 : 0) : 1, .8 + .4 * S.throttle, 0, GB.shiftTime * .6);
+    // Runterschalten mit Zwischengas: Serie von Knallern
+    if (!up && rpmN > .35 && Math.random() < (race ? 1 : .7) * Math.min(1, pm)) SMP.bang(race ? 2 + (Math.random() * 2 | 0) : 1 + (Math.random() < .5 ? 1 : 0), rpmN > .5 ? 1 : .7, 0, .04);
+    if (!(SMP.popBufs && SMP.popBufs.length)) {   // Fallback ohne Samples: synthetische Pops
+      if (up && S.throttle > .6) AU.crackle(1, .7 + .3 * pm);
+      if (!up) AU.crackle(2, .6);
+    }
+  }
+  if (GB.type === 'seq' && !SQ.drag) SQ.y = dir > 0 ? 1 : -1;
+  if (GB.paddle) { if (dir > 0) PAD.r = 1; else PAD.l = 1; }
+}
+
+// Automatik: schaltet nach Drehzahl und Gaspedal, Kickdown bei Vollgas, Anfahren aus N beim Gasgeben
+function autoShift(dt) {
+  const GB = gbox(), E = eng(), rpm = S.we * RPM;
+  S.autoT = Math.max(0, S.autoT - dt);
+  if (!S.running || S.shift || S.autoT > 0 || S.gear === -1) return;
+  const max = GB.ratios.length, kmh = S.v * 3.6;
+  const go = to => { S.autoT = .35; S.clutchEng = 0; if (GB.type === 'h') hSetGear(to); else shiftDir(to > S.gear ? 1 : -1); };
+  if (S.gear === 0) { if (S.throttle > .08 && kmh > -2) go(1); return; }
+  const up = E.red - (S.throttle > .85 ? 350 : 900 + (1 - S.throttle) * 1500);
+  if (S.gear < max && rpm > up && S.throttle > .04) { go(S.gear + 1); return; }
+  const dn = E.idle + 700 + (S.throttle > .9 ? 1600 : 0);
+  if (S.gear > 1 && rpm < dn) {
+    const to = S.gear - 1, rpmAfter = Math.abs(ratioOf(to) * S.v / WR) * RPM;
+    if (rpmAfter < E.red * .92) go(to);
+  }
+}
+// ---------------- Getriebe-Customizer ----------------
+function customOf() {
+  const b = GEARBOXES[S.cfg.gearbox];
+  if (!S.cfg.custom || S.cfg.custom.box !== S.cfg.gearbox) S.cfg.custom = {box: S.cfg.gearbox, ratios: b.ratios.slice(), final: b.final};
+  return S.cfg.custom;
+}
+function buildGearUI() {
+  const c = customOf(), box = document.getElementById('gearRatios');
+  box.innerHTML = '';
+  c.ratios.forEach((r, i) => {
+    const row = document.createElement('div'); row.className = 'field';
+    const lab = document.createElement('label'); lab.textContent = `${i + 1}. Gang`;
+    const rw = document.createElement('div'); rw.className = 'rw';
+    const inp = document.createElement('input'); inp.type = 'range'; inp.min = '0.5'; inp.max = '5'; inp.step = '0.01'; inp.value = r;
+    const out = document.createElement('output'); out.textContent = r.toFixed(2);
+    inp.addEventListener('input', () => {
+      c.ratios[i] = +inp.value; out.textContent = (+inp.value).toFixed(2);
+      // Gänge bleiben absteigend sortiert: Nachbarn nachziehen
+      for (let k = i - 1; k >= 0; k--) if (c.ratios[k] < c.ratios[k + 1] + .02) c.ratios[k] = c.ratios[k + 1] + .02;
+      for (let k = i + 1; k < c.ratios.length; k++) if (c.ratios[k] > c.ratios[k - 1] - .02) c.ratios[k] = c.ratios[k - 1] - .02;
+      [...box.querySelectorAll('input')].forEach((el, k) => { el.value = c.ratios[k]; el.nextElementSibling.textContent = c.ratios[k].toFixed(2); });
+      gearChanged();
+    });
+    rw.appendChild(inp); rw.appendChild(out); row.appendChild(lab); row.appendChild(rw); box.appendChild(row);
+  });
+  const fd = document.getElementById('finalDrive'), wc = document.getElementById('wheelCirc');
+  fd.value = c.final; fd.nextElementSibling.textContent = c.final.toFixed(2) + ' : 1';
+  wc.value = S.cfg.wheelCirc; wc.nextElementSibling.textContent = S.cfg.wheelCirc.toFixed(2) + ' m';
+  gearInfo();
+}
+function gearInfo() {
+  const GB = gbox(), E = eng();
+  const lines = GB.ratios.map((r, i) => `${i + 1}: ${Math.round(E.red / RPM * WR / (r * GB.final) * 3.6)}`);
+  document.getElementById('gearInfo').textContent = `Bei Begrenzer km/h – ${lines.join(' · ')} · Radumfang ${S.cfg.wheelCirc.toFixed(2)} m`;
+}
+function gearChanged() { WR = S.cfg.wheelCirc / TAU; AU.update(); gearInfo(); updateSpecs(); }
+function toggleEngine() {
+  AU.init();
+  if (S.running) { S.running = false; S.cut = false; toast('Motor aus'); return; }
+  if (S.starting > 0) return;
+  if (S.blown) { AU.klack(1, true); toast('Motor sitzt fest – erst in die Werkstatt'); return; }
+  const GB = gbox();
+  if (!GB.paddle && S.gear !== 0 && S.clutch < .6) { toast('Kupplung treten oder Leerlauf einlegen!'); return; }
+  S.starting = .9;
+}
+
+// ---------------- Audio ----------------
+// Die Klangsynthese läuft im AudioWorklet (Code im <script id="dsp">); Fallback: ScriptProcessor im Hauptthread.
+const AU = {
+  ctx:null, port:null,
+  init() {
+    if (this.ctx) { if (this.ctx.state !== 'running') this.ctx.resume(); return; }
+    this.start();
+  },
+  async start() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    let ctx = this.ctx = new AC({latencyHint: 'interactive'});
+    const code = document.getElementById('dsp').textContent;
+    let node = null;
+    if (ctx.audioWorklet) {
+      const urls = [];
+      try { urls.push(URL.createObjectURL(new Blob([code], {type: 'application/javascript'}))); } catch (e) {}
+      urls.push('data:application/javascript;charset=utf-8,' + encodeURIComponent(code));   // file:// lädt nur so
+      for (const url of urls) {
+        try {
+          await ctx.audioWorklet.addModule(url);
+          node = new AudioWorkletNode(ctx, 'engine', {numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2]});
+          node.port.onmessage = e => this.fromDsp(e.data);
+          this.port = node.port;
+          break;
+        } catch (e) { node = null; }
+      }
+    }
+    if (!node) {
+      console.warn('AudioWorklet nicht verfügbar, Klang läuft im Hauptthread');
+      if (ctx.sampleRate !== 48000) { ctx.close(); ctx = this.ctx = new AC({sampleRate: 48000, latencyHint: 'interactive'}); }
+      window.__dspOut = m => this.fromDsp(m);
+      const proc = new window.__EngineProc();
+      node = ctx.createScriptProcessor(1024, 1, 2);
+      node.onaudioprocess = e => { const o = e.outputBuffer; proc.process([], [[o.getChannelData(0), o.getChannelData(1)]], {}); };
+      this.port = {postMessage: m => proc.port.onmessage && proc.port.onmessage({data: m})};
+    }
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = .004; comp.release.value = .2;
+    const dry = ctx.createGain();
+    this.conv = ctx.createConvolver(); this.wet = ctx.createGain();
+    node.connect(dry); node.connect(this.conv); this.conv.connect(this.wet);
+    dry.connect(comp); this.wet.connect(comp); comp.connect(ctx.destination);
+    this.dry = dry; this.comp = comp;
+    SMP.attach(ctx, dry, this.conv);
+    this.sendCfg(); this.sendMix(); SMP.load();
+  },
+  // Raumklang: draussen frühe Reflexionen + Hallfahne, innen kurze dichte Kabine
+  setView() {
+    if (!this.conv) return;
+    const innen = S.cfg.view === 'innen', ctx = this.ctx, sr = ctx.sampleRate;
+    const len = Math.floor(sr * (innen ? .12 : 1.2)), buf = ctx.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      if (innen) {
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * .02)) * .5;
+      } else {
+        for (const [t, g] of [[.009, .55], [.017, .4], [.029, .32], [.046, .25], [.071, .18], [.097, .12]]) {
+          const i = Math.floor((t + ch * .0013 + Math.random() * .002) * sr);
+          d[i] += g * (Math.random() < .5 ? -1 : 1);
+        }
+        let lp = 0;
+        for (let i = Math.floor(sr * .04); i < len; i++) {
+          lp += .25 * ((Math.random() * 2 - 1) - lp);
+          d[i] += lp * .5 * Math.exp(-(i / sr - .04) / .3);
+        }
+      }
+    }
+    this.conv.buffer = buf;
+    this.wet.gain.value = innen ? .22 : .3;
+  },
+  send(m) { if (this.port) this.port.postMessage(m); },
+  sendCfg() {
+    const c = S.cfg;
+    this.send({type: 'cfg', cfg: {engine: c.engine, exhaust: c.exhaust, intake: c.intake, turbo: c.turbo, bov: c.bov, lever: c.lever, gbType: gbox().type, car: c.car, knob: c.knob}});
+  },
+  sendMix() {
+    const c = S.cfg, smp = SMP.active();
+    // bei echten Aufnahmen übernimmt SMP Auspuff + Ansaugung, die Synthese liefert nur noch Mechanik, Turbo, Reifen, Wind
+    this.send({type: 'mix', vol: c.vol, ex: smp ? 0 : c.mixEx, in: smp ? 0 : c.mixIn, tu: c.mixTu, me: c.mixMech, road: c.mixRoad, view: c.view, pops: smp || (SMP.popBufs && SMP.popBufs.length) ? 0 : c.pops, boostMax: c.boostMax, shift: c.mixShift, gear: c.mixGear});
+    this.setView(); SMP.mix();
+  },
+  update() {
+    if (!this.port) return;
+    SMP.update();
+    this.send({type: 'p', rpm: S.we * RPM, map: S.map, thr: S.thrEff, spool: S.boost, running: S.running, starting: S.starting > 0,
+      cut: S.cut, fuelCut: S.fuelCut, speed: Math.abs(S.v), final: gbox().final, wr: WR, torque: S.Tc / eng().torque,
+      dEng: S.dmg.engine, dTurbo: S.dmg.turbo, dGear: S.dmg.gear, gear: S.gear, clutch: S.clutchEng, slip: S.slipN * (.3 + .7 * S.dmg.clutch), knock: S.knock});
+  },
+  fromDsp(m) { if (m === 'flame') S.flame = 1; },
+  crackle(n, amp) { if (SMP.popBufs && SMP.popBufs.length) SMP.bang(n, amp); else this.send({type: 'crackle', n, amp}); },
+  bov(boost) { this.send({type: 'bov', amt: boost * (S.cfg.boostMax > 1 ? 1.15 : 1)}); },
+  grind() { this.send({type: 'grind'}); },
+  blow() { this.send({type: 'blow'}); },
+  klack(amp, dog) { this.send({type: 'klack', amp, dog: !!dog}); },
+  shift(amp, up) { this.send({type: 'shift', amp, up: !!up}); },
+  pump(dur, amp) { this.send({type: 'pump', dur, amp}); },
+};
+
+
+// ---------------- Echte Aufnahmen: Loop-Überblendung ----------------
+// Pro Motor mehrere kurze, nahtlose Loops aus echten Aufnahmen bei verschiedenen Drehzahlen (assets.js: SAMPLES / SND).
+// Jeder Loop läuft dauerhaft, wird per playbackRate auf die aktuelle Drehzahl gezogen und nur die zwei nächstgelegenen sind hörbar.
+const SMP = {
+  ctx: null, bus: null, loadLP: null, cab: null, buffers: {}, layers: [], key: null, popBufs: [], lastPop: 0, ready: false,
+  active() { return S.cfg.src === 'sample' && typeof SAMPLES !== 'undefined' && !!SAMPLES[S.cfg.engine]; },
+  attach(ctx, dry, conv) {
+    this.ctx = ctx;
+    this.bus = ctx.createGain(); this.loadLP = ctx.createBiquadFilter(); this.loadLP.type = 'lowpass'; this.loadLP.frequency.value = 12000; this.loadLP.Q.value = .5;
+    this.cab = ctx.createBiquadFilter(); this.cab.type = 'lowpass'; this.cab.frequency.value = 20000; this.cab.Q.value = .4;
+    this.pre = ctx.createGain(); this.pre.gain.value = 1.4;
+    this.shaper = ctx.createWaveShaper(); const n = 1024, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); }
+    this.shaper.curve = curve; this.shaper.oversample = '2x';
+    this.popBus = ctx.createGain();
+    // Knaller am Summen-Kompressor vorbei (der hat sie platt gedrückt): nur ein Limiter gegen Übersteuern
+    this.popLim = ctx.createDynamicsCompressor(); this.popLim.threshold.value = -3; this.popLim.knee.value = 0; this.popLim.ratio.value = 20; this.popLim.attack.value = .001; this.popLim.release.value = .12;
+    this.popBus.connect(this.popLim); this.popLim.connect(ctx.destination); this.popBus.connect(conv);
+    if (typeof POPS !== 'undefined') Promise.all(POPS.map(id => this.decode(id))).then(b => { this.popBufs = b.filter(Boolean); AU.sendMix(); }).catch(() => {});
+    this.clackBus = ctx.createGain(); this.clackBus.connect(dry); this.clackBufs = [];
+    if (typeof CLACKS !== 'undefined') Promise.all(CLACKS.map(id => this.decode(id))).then(b => { this.clackBufs = b.filter(Boolean); }).catch(() => {});
+    this.bus.connect(this.loadLP); this.loadLP.connect(this.cab); this.cab.connect(this.pre); this.pre.connect(this.shaper);
+    this.shaper.connect(dry); this.shaper.connect(conv);
+  },
+  async decode(id) {
+    if (this.buffers[id]) return this.buffers[id];
+    const b64 = SND[id]; if (!b64) return null;
+    const bin = atob(b64.slice(b64.indexOf(',') + 1)), arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const buf = await this.ctx.decodeAudioData(arr.buffer);
+    return (this.buffers[id] = buf);
+  },
+  async load() {
+    if (!this.ctx) return;
+    const key = this.active() ? S.cfg.engine : null;
+    if (key === this.key) return;
+    this.stop(); this.key = key; this.ready = false;
+    if (!key) return;
+    const def = SAMPLES[key];
+    const bufs = await Promise.all(def.loops.map(l => this.decode(l.id)));
+    if (this.key !== key) return;
+    const t = this.ctx.currentTime;
+    this.layers = def.loops.map((l, i) => {
+      const src = this.ctx.createBufferSource(); src.buffer = bufs[i]; src.loop = true; src.loopStart = 0; src.loopEnd = bufs[i].duration;
+      const g = this.ctx.createGain(); g.gain.value = 0;
+      src.connect(g); g.connect(this.bus); src.start(t + .01, Math.random() * bufs[i].duration);
+      return {src, g, rpm: l.rpm, gain: l.gain || 1};
+    });
+    this.layers.sort((a, b) => a.rpm - b.rpm);
+    this.ready = true; this.mix();
+  },
+  stop() {
+    for (const L of this.layers) { try { L.src.stop(); } catch (e) {} L.src.disconnect(); L.g.disconnect(); }
+    this.layers = []; this.ready = false;
+  },
+  mix() {
+    if (!this.bus) return;
+    const innen = S.cfg.view === 'innen';
+    const tb = this.ctx.currentTime; this.bus.gain.cancelScheduledValues(tb); this.bus.gain.setTargetAtTime(S.cfg.mixEx * .9, tb, .02);
+    this.cab.frequency.value = innen ? 900 : 20000;
+    this.popBus.gain.value = S.cfg.mixBang * bangLoud() * (innen ? .55 : 1);
+    const o = document.getElementById('mixBang'); if (o && o.nextElementSibling) o.nextElementSibling.textContent = SLIDERS.mixBang(+S.cfg.mixBang);
+  },
+  update() {
+    // Schubabschaltung bei hoher Drehzahl: hin und wieder ein echter Knall (auch bei Synthese)
+    { const r = S.we * RPM, idl = eng().idle;
+      if (S.running && S.fuelCut && r > idl + 1500 && S.cfg.pops > 0 && Math.random() < .012 * S.cfg.pops * Math.min(1, (r - idl) / 4000)) this.bang(1, .5 + .4 * Math.random()); }
+    if (!this.ready || !this.layers.length) return;
+    const t = this.ctx.currentTime, tc = .03;
+    const rpm = S.we * RPM, on = S.running && !S.starting;
+    const def = SAMPLES[this.key], idle = eng().idle;
+    // Motor aus: Loops stumm, ausser beim Anlassen (Starter-Drehzahl langsam hochziehen)
+    const spin = S.starting > 0 ? .35 : on ? 1 : (rpm > 60 ? .5 : 0);
+    const lr = Math.log(Math.max(rpm, 200));
+    const L = this.layers, n = L.length;
+    for (let i = 0; i < n; i++) {
+      const a = L[i]; let w;
+      if (n === 1) w = 1;
+      else if (i === 0) w = lr <= Math.log(L[0].rpm) ? 1 : Math.max(0, 1 - (lr - Math.log(L[0].rpm)) / (Math.log(L[1].rpm) - Math.log(L[0].rpm)));
+      else if (i === n - 1) w = lr >= Math.log(a.rpm) ? 1 : Math.max(0, 1 - (Math.log(a.rpm) - lr) / (Math.log(a.rpm) - Math.log(L[i-1].rpm)));
+      else {
+        const lo = Math.log(L[i-1].rpm), mid = Math.log(a.rpm), hi = Math.log(L[i+1].rpm);
+        w = lr < mid ? Math.max(0, (lr - lo) / (mid - lo)) : Math.max(0, 1 - (lr - mid) / (hi - mid));
+      }
+      // gleiche Lautheit beim Überblenden (Leistungs-Summe statt linearer Summe)
+      const g = Math.sqrt(w) * a.gain * spin * (S.cut ? .75 : 1);
+      a.g.gain.setTargetAtTime(g, t, tc);
+      const rate = Math.max(.15, Math.min(6, Math.max(rpm, 120) / a.rpm));
+      a.src.playbackRate.setTargetAtTime(rate, t, .02);
+    }
+    // Last: ohne Gas dumpfer und leiser (Schubbetrieb), Vollgas offen
+    const load = S.running ? Math.max(S.map, 0) : 0;
+    if (!(S.shift && !S.shift.up)) {   // während des Zwischengas-Blips die Automation nicht überschreiben
+      this.loadLP.frequency.setTargetAtTime(1400 + 10000 * Math.min(1, load * .9 + .1), t, .06);
+      this.pre.gain.setTargetAtTime(.75 + .85 * Math.min(1, load), t, .05);
+    }
+    // Schubabschaltung bei hoher Drehzahl: hin und wieder ein Knall (Pops & Bangs)
+  },
+  // Echter Schaltknack (Porsche 997 GT3, sequentiell): Klauen schlagen ein. Runterschalten etwas tiefer und schwerer
+  clack(up, amp) {
+    if (!this.ctx || !this.clackBufs || !this.clackBufs.length) return false;
+    const t = this.ctx.currentTime + .018, innen = S.cfg.view === 'innen';
+    const buf = this.clackBufs[Math.random() * this.clackBufs.length | 0];
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = (up ? 1 : .88) * (.94 + Math.random() * .12);
+    const g = this.ctx.createGain(); g.gain.value = amp * S.cfg.mixShift * (up ? 1.1 : 1.35) * (innen ? 1.3 : .9) * (.85 + Math.random() * .3);
+    const body = this.ctx.createBiquadFilter(); body.type = 'lowpass'; body.frequency.value = up ? 5000 : 4000; body.Q.value = .7;
+    g.gain.value *= .4;
+    src.connect(body); body.connect(g); g.connect(this.clackBus); src.start(t);
+    return true;
+  },
+  bang(n, amp, lp, delay) {
+    if (!this.ctx || !this.popBufs || !this.popBufs.length) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    for (let i = 0; i < n; i++) {
+      const buf = this.popBufs[Math.random() * this.popBufs.length | 0];
+      const src = this.ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = .9 + Math.random() * .25;
+      const g = this.ctx.createGain(); g.gain.value = Math.min(2.5, amp * (.75 + Math.random() * .5));
+      src.connect(g);
+      if (lp) { const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.Q.value = .7; g.connect(f); f.connect(this.popBus); }
+      else g.connect(this.popBus);
+      src.start(t + i * (.06 + Math.random() * .12));
+    }
+    if (!lp) S.flame = 1;
+  },
+  // Zündunterbruch beim Hochschalten: Motor-Loops für die Schaltdauer hart weg, dann sofort zurück
+  cut(dur) {
+    if (!this.bus) return;
+    const t = this.ctx.currentTime, g = this.bus.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(S.cfg.mixEx * .08, t + .012);
+    g.setValueAtTime(S.cfg.mixEx * .08, t + dur); g.linearRampToValueAtTime(S.cfg.mixEx * .9, t + dur + .05);
+  },
+  // Zwischengas beim Runterschalten: kurzer Gas-Stoss auf Loops und Tiefpass, Physik zieht die Drehzahl selbst hoch
+  blip() {
+    if (!this.bus) return;
+    const t = this.ctx.currentTime;
+    this.loadLP.frequency.cancelScheduledValues(t); this.loadLP.frequency.setValueAtTime(this.loadLP.frequency.value, t);
+    this.loadLP.frequency.linearRampToValueAtTime(11000, t + .02); this.loadLP.frequency.setValueAtTime(11000, t + .14);
+    this.pre.gain.cancelScheduledValues(t); this.pre.gain.setValueAtTime(this.pre.gain.value, t); this.pre.gain.linearRampToValueAtTime(1.7, t + .02); this.pre.gain.setValueAtTime(1.7, t + .14);
+  },
+};
+
+// ---------------- Zeichnen ----------------
+function makeCanvas(id) {
+  const el = document.getElementById(id), o = {el, ctx: el.getContext('2d'), w: 0, h: 0};
+  const fit = () => {
+    const r = el.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    o.w = r.width; o.h = r.height;
+    el.width = Math.round(r.width * dpr); el.height = Math.round(r.height * dpr);
+    o.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  new ResizeObserver(fit).observe(el); fit();
+  return o;
+}
+let carC, dashC, shiftC;
+
+const pathCache = new Map();
+const pathOf = d => { if (!pathCache.has(d)) pathCache.set(d, new Path2D(d)); return pathCache.get(d); };
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16), t = amt < 0 ? 0 : 255, p = Math.abs(amt);
+  const ch = sh => Math.round(((n >> sh) & 255) + (t - ((n >> sh) & 255)) * p);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
+function drawCar(dt, t) {
+  const {ctx, w, h} = carC;
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#111823'); sky.addColorStop(1, '#27313e');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+  const ry = h * .7;
+  ctx.fillStyle = '#19202a'; ctx.beginPath(); ctx.moveTo(0, ry);
+  for (let x = 0; x <= w + 10; x += 10) { const X = x + S.dist * 3; ctx.lineTo(x, h * .5 - Math.sin(X * .006) * 18 - Math.sin(X * .017) * 8); }
+  ctx.lineTo(w, ry); ctx.fill();
+  ctx.fillStyle = '#202329'; ctx.fillRect(0, ry, w, h - ry);
+  ctx.fillStyle = '#3a3f47'; ctx.fillRect(0, ry, w, 3);
+  const period = 110, o = ((S.dist * 30) % period + period) % period;
+  ctx.fillStyle = '#80858d';
+  for (let x = -o; x < w; x += period) ctx.fillRect(x, ry + (h - ry) * .66, 55, 4);
+
+  const kmh = Math.abs(S.v) * 3.6;
+  if (kmh > 60) {
+    ctx.strokeStyle = `rgba(255,255,255,${Math.min(.18, (kmh - 60) / 900)})`; ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const y = (i * 37 + 11) % (ry - 10), x = ((i * 173 - S.dist * 60) % (w + 200) + w + 200) % (w + 200) - 100;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 80, y); ctx.stroke();
+    }
+  }
+
+  const C = car(), col = S.cfg.color || '#c8321a';
+  const s = Math.min(1, w / 520) * .95, gy = ry + (h - ry) * .38;
+  const shake = S.running ? (Math.random() - .5) * (.5 + S.thrEff + S.dmg.engine * 2) : 0;
+  ctx.save(); ctx.translate(w * .5, gy + shake); ctx.scale(s, s);
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(0, 2, 132, 7, 0, 0, TAU); ctx.fill();
+  const ill = S.cfg.look === 'grafik' && typeof CAR_ILL !== 'undefined' && CAR_ILL[S.cfg.car];   // Illustration, sonst Foto als Ersatz
+  const img = ill ? illImage(S.cfg.car) : (S.cfg.look === 'foto' || S.cfg.look === 'grafik') && typeof CAR_IMG !== 'undefined' ? carImage(S.cfg.car) : null;
+  const sil = !img && typeof CAR_SIL !== 'undefined' && CAR_SIL[S.cfg.car] ? carSil(S.cfg.car) : null;
+  let [ex, ey] = C.ex;
+  if (img && img.ok) { ex = -img.dw / 2 - 2; ey = -Math.round(img.dh * .18); }
+  else if (sil) { ex = -sil.w / 2 - 2; ey = -Math.round(sil.h * .18); }
+  if (S.flame > .02) {
+    const len = (25 + Math.random() * 45) * S.flame;
+    const fg = ctx.createLinearGradient(ex - 2, 0, ex - 2 - len, 0);
+    fg.addColorStop(0, '#fff6c2'); fg.addColorStop(.35, '#ffb020'); fg.addColorStop(1, 'rgba(255,60,0,0)');
+    ctx.fillStyle = fg; ctx.beginPath();
+    ctx.moveTo(ex, ey - 4); ctx.quadraticCurveTo(ex - 2 - len * .5, ey - 13 - Math.random() * 6, ex - 2 - len, ey);
+    ctx.quadraticCurveTo(ex - 2 - len * .5, ey + 9 + Math.random() * 6, ex, ey + 4); ctx.fill();
+  }
+  if (img && img.ok) {
+    ctx.save(); if (img.flip) { ctx.scale(-1, 1); }
+    ctx.drawImage(img.el, -img.dw / 2, -img.dh, img.dw, img.dh); ctx.restore();
+    drawWheelsDust(ctx, C, s);
+    ctx.restore(); drawSmoke(ctx, dt, s, ex, ey, C); S.flame = Math.max(0, S.flame - dt * 5); return;
+  }
+  if (sil) {   // Zeichnung aus der echten Silhouette: Lackfarbe, Livery, dann Fenster/Reifen/Konturen als Tusche
+    ctx.fillStyle = '#6b7079'; ctx.fillRect(ex - 4, ey - 3, 12, 5);
+    const P = sil.path2d, bg2 = ctx.createLinearGradient(0, -sil.h, 0, 0);
+    bg2.addColorStop(0, shade(col, .3)); bg2.addColorStop(.55, col); bg2.addColorStop(1, shade(col, -.45));
+    ctx.fillStyle = bg2; ctx.fill(P);
+    const L2 = C.livery;
+    if (L2) {
+      ctx.save(); ctx.clip(P);
+      for (const [y, h, c, a] of L2.bands || []) { ctx.globalAlpha = a ?? 1; ctx.fillStyle = c; ctx.fillRect(-160, y, 320, h); }
+      for (const [x, w, c, k, a] of L2.slash || []) {
+        ctx.globalAlpha = a ?? 1; ctx.fillStyle = c; ctx.beginPath();
+        ctx.moveTo(x, 0); ctx.lineTo(x + w, 0); ctx.lineTo(x + w + k, -sil.h - 10); ctx.lineTo(x + k, -sil.h - 10); ctx.closePath(); ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.restore();
+    }
+    if (sil.ink.ok) ctx.drawImage(sil.ink.el, -sil.w / 2, -sil.h, sil.w, sil.h);
+    ctx.strokeStyle = 'rgba(10,12,16,.75)'; ctx.lineWidth = 1.5; ctx.stroke(P);
+    if (L2 && L2.num) {
+      const [nx, ny] = L2.numAt || [10, -36];
+      ctx.fillStyle = L2.numBg || '#f2f0ea'; ctx.beginPath(); ctx.arc(nx, ny, 11, 0, TAU); ctx.fill();
+      ctx.fillStyle = L2.numCol || '#111'; ctx.font = `700 ${L2.num.length > 2 ? 11 : 14}px "Barlow Condensed",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(L2.num, nx, ny + 1);
+    }
+    drawWheelsDust(ctx, C, s);
+    ctx.restore(); drawSmoke(ctx, dt, s, ex, ey, C); S.flame = Math.max(0, S.flame - dt * 5); return;
+  }
+  ctx.fillStyle = '#6b7079'; ctx.fillRect(ex - 4, ey - 3, 12, 5);
+  if (C.bed) { ctx.fillStyle = shade(col, -.55); ctx.fillRect(-126, -66, 92, 6); }
+  const bg = ctx.createLinearGradient(0, -100, 0, -18);
+  bg.addColorStop(0, shade(col, .25)); bg.addColorStop(1, shade(col, -.45));
+  ctx.fillStyle = bg; ctx.fill(pathOf(C.path));
+  const L = C.livery;
+  if (L) {   // Lackierung: Bänder + schräge Streifen, auf die Karosserie geclippt, unter Fenster und Anbauteilen
+    ctx.save(); ctx.clip(pathOf(C.path));
+    for (const [y, h, c, a] of L.bands || []) { ctx.globalAlpha = a ?? 1; ctx.fillStyle = c; ctx.fillRect(-140, y, 280, h); }
+    for (const [x, w, c, k, a] of L.slash || []) {
+      ctx.globalAlpha = a ?? 1; ctx.fillStyle = c; ctx.beginPath();
+      ctx.moveTo(x, -14); ctx.lineTo(x + w, -14); ctx.lineTo(x + w + k, -100); ctx.lineTo(x + k, -100); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+  ctx.fillStyle = '#0f141b'; ctx.fill(pathOf(C.win));
+  if (C.pillar) { ctx.strokeStyle = shade(col, -.45); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(C.pillar[0], C.pillar[1]); ctx.lineTo(C.pillar[2], C.pillar[3]); ctx.stroke(); }
+  if (C.pillar2) { ctx.strokeStyle = shade(col, -.45); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(C.pillar2[0], C.pillar2[1]); ctx.lineTo(C.pillar2[2], C.pillar2[3]); ctx.stroke(); }
+  if (C.scoop) { ctx.fillStyle = shade(col, -.6); ctx.fillRect(66, -58, 30, 6); ctx.fillStyle = shade(col, .5); ctx.fillRect(-128, -44, 256, 4); }
+  if (L && L.num) {   // Startnummer
+    const [nx, ny] = L.numAt || [10, -36];
+    ctx.fillStyle = L.numBg || '#f2f0ea'; ctx.beginPath(); ctx.arc(nx, ny, 11, 0, TAU); ctx.fill();
+    ctx.fillStyle = L.numCol || '#111'; ctx.font = `700 ${L.num.length > 2 ? 11 : 14}px "Barlow Condensed",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(L.num, nx, ny + 1);
+  }
+  if (C.grille) { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#0c0d0f'; ctx.fillRect(front - 10, -46, 6, 22); ctx.fillRect(front - 18, -46, 6, 22); }
+  if (C.lip) { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = shade(col, -.5); ctx.fillRect(back + 2, -62, 24, 3); }
+  if (C.quad) { ctx.fillStyle = '#6b7079'; ctx.fillRect(ex - 4, ey - 9, 12, 4); ctx.fillRect(ex - 4, ey + 3, 12, 4); }
+  if (C.twingo) { ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(80, -46, 5, 0, TAU); ctx.fill(); }
+  if (C.splitter) { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#111316'; ctx.fillRect(front - 18, -18, 30, 3); }
+  if (C.bigWing) { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = '#111316'; ctx.fillRect(back + 16, -84, 4, 26); ctx.fillRect(back - 8, -94, 3, 14); ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(back - 8, -90, 48, 6); }
+  if (C.wing) { ctx.fillStyle = '#15181c'; ctx.fillRect(-112, -60, 4, 12); ctx.fillRect(-126, -64, 34, 5); }
+  if (C.rally) {
+    ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.arc(-40, -42, 13, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.font = '700 16px "Barlow Condensed",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7', -40, -41);
+    ctx.fillStyle = '#15181c'; ctx.fillRect(-30, -94, 30, 5); ctx.fillRect(-104, -22, 6, 16); ctx.fillRect(46, -22, 6, 16);
+  }
+  const brakeGlow = S.brake > .1, tail = C.path.match(/M(-?\d+)/)[1] | 0;
+  ctx.fillStyle = brakeGlow ? '#ff2a2a' : '#7a0f0f';
+  if (brakeGlow) { ctx.shadowColor = '#ff2a2a'; ctx.shadowBlur = 18; }
+  ctx.fillRect(tail - 4, -48, 7, 10); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff3c4'; ctx.fillRect(-tail - 6, -46, 8, 7);
+  const ang = S.dist / WR;
+  for (const wx of [-C.wx, C.wx]) {
+    const r = C.wr, cy = -r;
+    ctx.fillStyle = '#0a0a0b'; ctx.beginPath(); ctx.arc(wx, cy, r + 4, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(wx, cy, r, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#9aa3ad'; ctx.beginPath(); ctx.arc(wx, cy, r * .6, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3b4048'; ctx.lineWidth = 3;
+    for (let k = 0; k < 5; k++) { const a = ang + k * TAU / 5; ctx.beginPath(); ctx.moveTo(wx, cy); ctx.lineTo(wx + Math.cos(a) * r * .55, cy + Math.sin(a) * r * .55); ctx.stroke(); }
+    ctx.fillStyle = '#2b2f36'; ctx.beginPath(); ctx.arc(wx, cy, 3, 0, TAU); ctx.fill();
+  }
+
+  ctx.restore(); drawSmoke(ctx, dt, s, ex, ey, C);
+  S.flame = Math.max(0, S.flame - dt * 5);
+}
+
+
+
+// Rauch & Dampf: Ölqualm bei Motorschaden, Dampf bei Überhitzung, Turbo-Qualm (in Auto-Koordinaten, ctx bereits zurückgesetzt)
+function drawSmoke(ctx, dt, s, ex, ey, C) {
+  const {w, h} = carC, ry = h * .7, gy = ry + (h - ry) * .38;
+  ctx.save(); ctx.translate(w * .5, gy); ctx.scale(s, s);
+  const D = S.dmg, sm = S.smoke, drift = -(25 + Math.abs(S.v) * 30) / s;
+  const emit = (rate, x, y, c, vy) => { let n = rate * dt; while (n > 0) { if (Math.random() < n) sm.push({x: x + Math.random() * 6, y, vx: drift * (.6 + Math.random() * .5), vy: vy - Math.random() * 15, r: 4 + Math.random() * 4, life: 1.6, max: 1.6, c}); n--; } };
+  if (S.running && D.engine > .35) emit((D.engine - .35) * 60 * (.3 + S.thrEff), ex, ey, '150,160,175', -12);
+  if (S.running && D.turbo >= 1) emit(14 * (.3 + S.thrEff), ex, ey, '185,200,225', -10);
+  if (S.temp > 112) emit((S.temp - 112) * 4, C.hood[0], C.hood[1], '235,238,240', -45);
+  if (S.blown) { S.blowT = Math.max(0, S.blowT - dt); emit(4 + 40 * S.blowT / 5, C.hood[0], C.hood[1], '40,40,42', -35); }
+  for (let i = sm.length - 1; i >= 0; i--) {
+    const q = sm[i]; q.life -= dt;
+    if (q.life <= 0) { sm.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.r += dt * 22;
+    ctx.fillStyle = `rgba(${q.c},${(q.life / q.max * .45).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, TAU); ctx.fill();
+  }
+  if (sm.length > 400) sm.splice(0, sm.length - 400);
+  ctx.restore();
+}
+// Bremslicht-Glühen und Staub unter dem Foto-Auto: kleine Andeutung, dass es sich bewegt
+function drawWheelsDust(ctx, C, s) {
+  if (S.brake > .1) { ctx.fillStyle = 'rgba(255,42,42,.55)'; ctx.shadowColor = '#ff2a2a'; ctx.shadowBlur = 16; ctx.fillRect(-C.wx - 40, -34, 6, 8); ctx.shadowBlur = 0; }
+}
+const silCache = {};
+function carSil(key) {
+  if (silCache[key]) return silCache[key];
+  const d = CAR_SIL[key], ink = {el: new Image(), ok: false};
+  ink.el.onload = () => { ink.ok = true; }; ink.el.src = d.ink;
+  return (silCache[key] = {path2d: new Path2D(d.path), w: d.w, h: d.h, ink});
+}
+const imgCache = {}, illCache = {};
+function illImage(key) {
+  if (illCache[key]) return illCache[key];
+  const d = CAR_ILL[key], el = new Image(), o = illCache[key] = {el, ok: false, flip: false, dw: 0, dh: 0};
+  el.onload = () => { o.dw = Math.round(290 * d.w / 365); o.dh = Math.round(el.naturalHeight * o.dw / el.naturalWidth); o.ok = true; };
+  el.src = d.src; return o;
+}
+function carImage(key) {
+  if (imgCache[key]) return imgCache[key];
+  const src = CAR_IMG[key]; if (!src) return (imgCache[key] = {ok: false});
+  const el = new Image(), o = imgCache[key] = {el, ok: false, flip: !!(typeof CAR_IMG_FLIP !== 'undefined' && CAR_IMG_FLIP[key]), dw: 0, dh: 0};
+  el.onload = () => { const W = 268 * ((typeof CAR_IMG_SCALE !== 'undefined' && CAR_IMG_SCALE[key]) || 1); o.dw = W; o.dh = Math.round(el.naturalHeight * W / el.naturalWidth); o.ok = true; };
+  el.src = src; return o;
+}
+
+function gauge(ctx, x, y, R, val, max, red, step, label, digital) {
+  const a0 = Math.PI * .75, a1 = Math.PI * 2.25, ang = v => a0 + (a1 - a0) * clamp(v / max, 0, 1);
+  ctx.save();
+  const g = ctx.createRadialGradient(x, y, R * .1, x, y, R);
+  g.addColorStop(0, '#1d2128'); g.addColorStop(1, '#0a0c0f');
+  ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#303640'; ctx.stroke();
+  if (red != null) { ctx.beginPath(); ctx.arc(x, y, R * .86, ang(red), a1); ctx.lineWidth = R * .07; ctx.strokeStyle = '#d7261e'; ctx.stroke(); }
+  ctx.lineCap = 'round'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `600 ${Math.max(9, Math.round(R * .12))}px system-ui,sans-serif`;
+  for (let i = 0; i * step / 2 <= max + 1e-6; i++) {
+    const v = i * step / 2, major = i % 2 === 0, a = ang(v), r0 = R * (major ? .74 : .8), r1 = R * .9;
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+    ctx.lineWidth = major ? 2.5 : 1.2; ctx.strokeStyle = red != null && v >= red ? '#ff6b5e' : '#c9ced6'; ctx.stroke();
+    if (major) { ctx.fillStyle = '#c9ced6'; ctx.fillText(String(Math.round(v)), x + Math.cos(a) * R * .6, y + Math.sin(a) * R * .6); }
+  }
+  ctx.fillStyle = '#8a929d'; ctx.font = `500 ${Math.max(9, Math.round(R * .1))}px system-ui,sans-serif`;
+  ctx.fillText(label, x, y + R * .32);
+  ctx.fillStyle = '#eceef1'; ctx.font = `700 ${Math.max(11, Math.round(R * .17))}px ui-monospace,monospace`;
+  ctx.fillText(digital, x, y + R * .58);
+  const a = ang(val);
+  ctx.shadowColor = '#f5a524'; ctx.shadowBlur = 10; ctx.strokeStyle = '#f5a524'; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.moveTo(x - Math.cos(a) * R * .12, y - Math.sin(a) * R * .12); ctx.lineTo(x + Math.cos(a) * R * .84, y + Math.sin(a) * R * .84); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#2b3038'; ctx.beginPath(); ctx.arc(x, y, R * .07, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawDash(t) {
+  const {ctx, w, h} = dashC;
+  ctx.clearRect(0, 0, w, h);
+  if (S.cfg.dashStyle === 'gt3') { drawDashGT3(ctx, w, h, t); return; }
+  const E = eng(), T = turbo(), rpm = S.we * RPM, maxR = Math.ceil((E.red + 1000) / 1000);
+  const R = Math.min(h * .42, w * .2), cy = h * .5, tx = Math.max(R + 12, w * .2), sx = Math.min(w - R - 12, w * .8), mx = w / 2;
+  gauge(ctx, tx, cy, R, rpm / 1000, maxR, E.red / 1000, 1, 'U/min ×1000', String(Math.round(rpm / 10) * 10));
+  const kmh = Math.abs(S.v) * 3.6;
+  gauge(ctx, sx, cy, R, kmh, 320, null, 40, 'km/h', String(Math.round(kmh)));
+  const cw = Math.max(90, (sx - R) - (tx + R) - 16);
+
+  const n = 10, lw = Math.min(16, cw / n - 4), total = n * (lw + 4) - 4;
+  const lit = clamp(Math.floor((rpm - (E.red - 1800)) / 1800 * n), 0, n);
+  const flash = rpm > E.red - 250, blinkOn = Math.floor(t / 70) % 2 === 0;
+  for (let i = 0; i < n; i++) {
+    const col = i < 4 ? '#3ddc84' : i < 7 ? '#ffb020' : '#ff3b30';
+    const on = flash ? blinkOn : i < lit;
+    ctx.fillStyle = on ? (flash ? '#4da3ff' : col) : '#252930';
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = on ? 10 : 0;
+    ctx.beginPath(); ctx.arc(mx - total / 2 + i * (lw + 4) + lw / 2, h * .12, lw / 2, 0, TAU); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = S.shift ? '#5d646e' : S.cut ? '#ff3b30' : '#eceef1';
+  ctx.font = `700 ${Math.round(h * .36)}px "Barlow Condensed","Arial Narrow",sans-serif`;
+  ctx.fillText(gearName(S.shift ? S.shift.to : S.gear), mx, h * .43);
+  ctx.fillStyle = '#8a929d'; ctx.font = '600 11px system-ui,sans-serif';
+  ctx.fillText(gbox().type === 'gt3' ? 'SEQ · GANG' : gbox().paddle ? 'DSG · GANG' : 'GANG', mx, h * .6);
+
+  const bw = Math.min(cw, 170), bx = mx - bw / 2, by = h * .7;
+  if (T.type !== 'none') {
+    const maxB = Math.max(.5, S.cfg.boostMax), minB = -.8;
+    const val = S.running ? S.boost * S.cfg.boostMax - (1 - S.thrEff) * .7 * (T.type === 'turbo' ? 1 : .4) : 0;
+    const X = v => bx + (clamp(v, minB, maxB) - minB) / (maxB - minB) * bw;
+    ctx.fillStyle = '#20242b'; ctx.fillRect(bx, by, bw, 8);
+    ctx.fillStyle = val > 0 ? '#ffb020' : '#4da3ff';
+    ctx.fillRect(Math.min(X(0), X(val)), by, Math.abs(X(val) - X(0)), 8);
+    ctx.fillStyle = '#eceef1'; ctx.fillRect(X(0) - 1, by - 3, 2, 14);
+    ctx.fillStyle = '#8a929d'; ctx.font = '600 11px system-ui,sans-serif';
+    ctx.fillText(`${T.type === 'sc' ? 'KOMPRESSOR' : 'LADEDRUCK'} ${val.toFixed(2)} bar`, mx, by + 22);
+  } else {
+    ctx.fillStyle = '#5d646e'; ctx.font = '600 11px system-ui,sans-serif'; ctx.fillText('SAUGMOTOR', mx, by + 10);
+  }
+  let status = '', sc = '#8a929d';
+  if (S.blown) { status = 'MOTORSCHADEN · WERKSTATT'; sc = '#e5484d'; }
+  else if (S.starting > 0) { status = 'STARTET …'; sc = '#ffb020'; }
+  else if (!S.running) { status = 'MOTOR AUS · Z'; sc = '#ff6b5e'; }
+  else if (S.cut) { status = 'BEGRENZER'; sc = '#ff3b30'; }
+  else if (S.temp > 112) { status = `ÜBERHITZT ${Math.round(S.temp)} °C`; sc = '#e5484d'; }
+  else if (S.knock > .1) { status = 'KLOPFEN'; sc = '#f5a524'; }
+  else if (S.dmg.engine > .35) { status = 'MOTORKONTROLLE'; sc = '#f5a524'; }
+  else { status = `${Math.round(S.temp)} °C`; sc = S.temp > 105 ? '#f5a524' : '#5d646e'; }
+  if (status) { ctx.fillStyle = sc; ctx.font = '700 12px system-ui,sans-serif'; ctx.fillText(status, mx, h * .92); }
+}
+
+// GT3-Display: LED-Leiste, riesiger Gang, digitale Werte wie in einem Renn-Dash
+function drawDashGT3(ctx, w, h, t) {
+  const E = eng(), T = turbo(), rpm = S.we * RPM, kmh = Math.abs(S.v) * 3.6, GB = gbox();
+  const pad = 14, bw = w - pad * 2;
+  ctx.fillStyle = '#07080a'; ctx.fillRect(pad - 6, 6, bw + 12, h - 12);
+  ctx.strokeStyle = '#2a2f36'; ctx.lineWidth = 2; ctx.strokeRect(pad - 6, 6, bw + 12, h - 12);
+  const n = 16, gap = 4, sw = (bw - gap * (n - 1)) / n, y0 = 16, sh = Math.max(12, h * .08);
+  const start = E.red * .45, lit = clamp((rpm - start) / (E.red - 250 - start), 0, 1) * n;
+  const flash = rpm > E.red - 250, blinkOn = Math.floor(t / 60) % 2 === 0;
+  for (let i = 0; i < n; i++) {
+    const col = i < 6 ? '#3ddc84' : i < 11 ? '#ffb020' : '#ff3b30';
+    const on = flash ? blinkOn : i < lit;
+    ctx.fillStyle = on ? (flash ? '#4da3ff' : col) : '#1a1e24';
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = on ? 12 : 0;
+    ctx.fillRect(pad + i * (sw + gap), y0, sw, sh);
+  }
+  ctx.shadowBlur = 0;
+  const by = y0 + sh + 8, bh = 6;
+  ctx.fillStyle = '#1a1e24'; ctx.fillRect(pad, by, bw, bh);
+  ctx.fillStyle = rpm > E.red - 250 ? '#ff3b30' : '#eceef1'; ctx.fillRect(pad, by, bw * clamp(rpm / (E.red + 500), 0, 1), bh);
+  const mid = h * .6, mx = w / 2;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const gsize = Math.round(h * .5);
+  ctx.fillStyle = S.shift ? '#5d646e' : S.cut ? '#ff3b30' : '#f5a524';
+  ctx.font = `800 ${gsize}px "Barlow Condensed","Arial Narrow",sans-serif`;
+  ctx.fillText(gearName(S.shift ? S.shift.to : S.gear), mx, mid + 4);
+  ctx.fillStyle = '#5d646e'; ctx.font = '600 11px "Barlow Condensed",sans-serif'; ctx.fillText(S.cfg.shiftMode === 'auto' ? 'AUTO' : 'GEAR', mx, mid + gsize * .58);
+  const lx = pad + bw * .17, rx = pad + bw * .83;
+  const big = Math.round(h * .28), small = Math.round(h * .1);
+  ctx.fillStyle = '#eceef1'; ctx.font = `700 ${big}px "Barlow Condensed",sans-serif`; ctx.fillText(String(Math.round(kmh)), lx, mid - h * .06);
+  ctx.fillStyle = '#8a929d'; ctx.font = `600 ${small}px "Barlow Condensed",sans-serif`; ctx.fillText('KM/H', lx, mid + h * .12);
+  ctx.fillStyle = '#eceef1'; ctx.font = `700 ${small + 4}px "Barlow Condensed",sans-serif`; ctx.fillText(String(Math.round(rpm / 10) * 10), lx, mid + h * .26);
+  ctx.fillStyle = '#8a929d'; ctx.font = `600 ${small - 2}px "Barlow Condensed",sans-serif`; ctx.fillText('RPM', lx, mid + h * .36);
+  const rows = [];
+  rows.push(['WATER', `${Math.round(S.temp)}°`, S.temp > 112 ? '#e5484d' : S.temp > 105 ? '#f5a524' : '#eceef1']);
+  if (T.type !== 'none') { const val = S.running ? S.boost * S.cfg.boostMax - (1 - S.thrEff) * .7 * (T.type === 'turbo' ? 1 : .4) : 0; rows.push(['BOOST', `${val.toFixed(2)}`, val > 0 ? '#ffb020' : '#4da3ff']); }
+  else rows.push(['ENGINE', 'N/A', '#5d646e']);
+  rows.push(['THR', `${Math.round(S.throttle * 100)}%`, '#eceef1']);
+  rows.push(['BRK', `${Math.round(S.brake * 100)}%`, S.brake > .1 ? '#ff3b30' : '#eceef1']);
+  const rh = h * .15, ry0 = mid - h * .22;
+  rows.forEach(([k, v, c], i) => {
+    ctx.textAlign = 'right'; ctx.fillStyle = '#8a929d'; ctx.font = `600 ${small - 1}px "Barlow Condensed",sans-serif`; ctx.fillText(k, rx - 4, ry0 + i * rh);
+    ctx.textAlign = 'left'; ctx.fillStyle = c; ctx.font = `700 ${small + 3}px "Barlow Condensed",sans-serif`; ctx.fillText(v, rx + 4, ry0 + i * rh);
+  });
+  ctx.textAlign = 'center';
+  let status = '', sc = '#8a929d';
+  if (S.blown) { status = 'ENGINE FAILURE · PIT'; sc = '#e5484d'; }
+  else if (S.starting > 0) { status = 'STARTING'; sc = '#ffb020'; }
+  else if (!S.running) { status = 'ENGINE OFF · Z'; sc = '#ff6b5e'; }
+  else if (S.cut) { status = 'LIMITER'; sc = '#ff3b30'; }
+  else if (S.temp > 112) { status = 'OVERHEAT'; sc = '#e5484d'; }
+  else if (S.knock > .1) { status = 'KNOCK'; sc = '#f5a524'; }
+  else if (S.dmg.engine > .35) { status = 'CHECK ENGINE'; sc = '#f5a524'; }
+  else status = GB.name.split(' (')[0].toUpperCase();
+  ctx.fillStyle = sc; ctx.font = '700 12px "Barlow Condensed",sans-serif'; ctx.fillText(status, mx, h - 16);
+}
+
+function shiftGeom() {
+  const {w, h} = shiftC, size = Math.min(w, h);
+  return {cx: w / 2, cy: h / 2, size, xs: size * .19, ys: size * .33 * LEVERS[S.cfg.lever].throw};
+}
+function drawKnob(ctx, x, y, r, pattern) {
+  const k = KNOBS[S.cfg.knob];
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(x + r * .25, y + r * .35, r * 1.05, r, 0, 0, TAU); ctx.fill();
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r);
+  g.addColorStop(0, k.hi); g.addColorStop(1, k.col);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.clip();
+  if (k.carbon) {
+    const q = r / 3;
+    for (let i = -3; i < 3; i++) for (let j = -3; j < 3; j++) if ((i + j) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(x + i * q, y + j * q, q, q); }
+  }
+  if (k.grain) {
+    ctx.strokeStyle = 'rgba(40,18,4,.45)'; ctx.lineWidth = 1;
+    for (let i = 1; i < 6; i++) { ctx.beginPath(); ctx.ellipse(x + r * .3, y + r * .1, r * i * .22, r * i * .12, .4, 0, TAU); ctx.stroke(); }
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  const u = r * .38;
+  if (pattern === 'h') {
+    ctx.beginPath(); ctx.moveTo(x - u, y); ctx.lineTo(x + u, y);
+    for (const dx of [-u, 0, u]) { ctx.moveTo(x + dx, y - u); ctx.lineTo(x + dx, y + u); }
+    ctx.stroke();
+  } else {
+    ctx.font = `700 ${Math.round(r * .5)}px system-ui,sans-serif`; ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('−', x, y - u); ctx.fillText('+', x, y + u);
+  }
+  ctx.restore();
+}
+function drawShifter() {
+  const {ctx, w, h} = shiftC;
+  ctx.clearRect(0, 0, w, h);
+  const GB = gbox(), LV = LEVERS[S.cfg.lever], g = shiftGeom(), {cx, cy, size, xs, ys} = g;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  if (GB.paddle) {
+    const r = size * .42, wy = h * .55;
+    ctx.lineWidth = size * .09; ctx.strokeStyle = '#111317';
+    ctx.beginPath(); ctx.arc(cx, wy, r, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+    ctx.lineWidth = size * .07; ctx.beginPath(); ctx.moveTo(cx - r * .9, wy - r * .2); ctx.lineTo(cx + r * .9, wy - r * .2); ctx.stroke();
+    for (const side of [-1, 1]) {
+      const act = side < 0 ? PAD.l : PAD.r, px = cx + side * r * .78, py = wy - r * .62;
+      ctx.save(); ctx.translate(px, py); ctx.rotate(side * .35);
+      ctx.fillStyle = act > .05 ? '#f5a524' : '#9aa3ad';
+      ctx.beginPath(); ctx.roundRect(-size * .07, -size * .17, size * .14, size * .34, 8); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = `800 ${Math.round(size * .1)}px system-ui,sans-serif`;
+      ctx.fillText(side < 0 ? '−' : '+', 0, 0); ctx.restore();
+    }
+    ctx.fillStyle = '#eceef1'; ctx.font = `800 ${Math.round(size * .2)}px ui-monospace,monospace`;
+    ctx.fillText(gearName(S.shift ? S.shift.to : S.gear), cx, wy - r * .55);
+    return;
+  }
+
+  if (LV.ring) {
+    const pg = ctx.createLinearGradient(cx - size * .45, cy - size * .45, cx + size * .45, cy + size * .45);
+    pg.addColorStop(0, '#dfe3e8'); pg.addColorStop(.5, '#8a9199'); pg.addColorStop(1, '#c8cdd3');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.roundRect(cx - size * .46, cy - size * .46, size * .92, size * .92, 14); ctx.fill();
+    ctx.fillStyle = '#5b6168';
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.arc(cx + sx * size * .4, cy + sy * size * .4, 4, 0, TAU); ctx.fill(); }
+  } else {
+    const bg = ctx.createRadialGradient(cx, cy, size * .05, cx, cy, size * .46);
+    bg.addColorStop(0, '#2d2d31'); bg.addColorStop(1, '#101012');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx, cy, size * .46, 0, TAU); ctx.fill();
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, size * .42, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.lineCap = 'round'; ctx.lineWidth = size * .075;
+  ctx.strokeStyle = LV.ring ? '#15171a' : 'rgba(255,255,255,.08)';
+  const labelCol = active => active ? '#f5a524' : LV.ring ? '#1b1d20' : '#8a929d';
+  ctx.font = `800 ${Math.round(size * .075)}px system-ui,sans-serif`;
+
+  if (GB.type === 'h') {
+    const gate = GATES[S.cfg.gearbox], xsArr = gate.cols.map(c => c.x);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.min(...xsArr) * xs, cy); ctx.lineTo(cx + Math.max(...xsArr) * xs, cy);
+    for (const c of gate.cols) { ctx.moveTo(cx + c.x * xs, cy + (c.up != null ? -ys : 0)); ctx.lineTo(cx + c.x * xs, cy + (c.down != null ? ys : 0)); }
+    ctx.stroke();
+    for (const c of gate.cols) {
+      if (c.up != null) { ctx.fillStyle = labelCol(S.gear === c.up); ctx.fillText(gearName(c.up), cx + c.x * xs, cy - ys - size * .08); }
+      if (c.down != null) { ctx.fillStyle = labelCol(S.gear === c.down); ctx.fillText(gearName(c.down), cx + c.x * xs, cy + ys + size * .08); }
+    }
+    drawKnob(ctx, cx + K.x * xs, cy + K.y * ys, size * .1, 'h');
+  } else {
+    ctx.beginPath(); ctx.moveTo(cx, cy - ys); ctx.lineTo(cx, cy + ys); ctx.stroke();
+    ctx.fillStyle = labelCol(false); ctx.fillText('−', cx, cy - ys - size * .08); ctx.fillText('+', cx, cy + ys + size * .08);
+    ctx.fillStyle = '#eceef1'; ctx.font = `800 ${Math.round(size * .16)}px ui-monospace,monospace`;
+    ctx.fillText(gearName(S.shift ? S.shift.to : S.gear), cx + size * .3, cy);
+    drawKnob(ctx, cx, cy + SQ.y * ys, size * .1, 'seq');
+  }
+}
+
+// ---------------- Eingabe ----------------
+function hDrag(p) {
+  const g = shiftGeom(), gate = GATES[S.cfg.gearbox], th = LEVERS[S.cfg.lever].engage, LANE = .12;
+  const gx = (p.x - g.cx) / g.xs;
+  let gy = (p.y - g.cy) / g.ys;
+  if (K.blocked) {
+    if (Math.abs(gy) < th - .4 || Math.sign(gy) !== K.blocked) K.blocked = 0;
+    else gy = K.blocked * (th - .25);
+  }
+  const xsArr = gate.cols.map(c => c.x);
+  if (Math.abs(K.y) < LANE) {
+    K.x = clamp(gx, Math.min(...xsArr), Math.max(...xsArr)); K.y = 0;
+    let near = null, best = 1e9;
+    for (const c of gate.cols) { const d = Math.abs(c.x - K.x); if (d < best) { best = d; near = c; } }
+    if (best < .22) {
+      if (gy < -LANE && near.up != null) { K.x = near.x; K.y = Math.max(-1, gy); }
+      else if (gy > LANE && near.down != null) { K.x = near.x; K.y = Math.min(1, gy); }
+    }
+  } else {
+    const col = gate.cols.find(c => c.x === K.x);
+    K.y = clamp(gy, col && col.up != null ? -1 : 0, col && col.down != null ? 1 : 0);
+    if (Math.abs(K.y) < LANE) K.y = 0;
+  }
+  hUpdate();
+}
+function seqDrag(p) {
+  const g = shiftGeom(), gy = clamp((p.y - g.cy) / g.ys, -1, 1);
+  SQ.y = gy;
+  if (!SQ.fired && Math.abs(gy) > .6) { SQ.fired = true; shiftDir(gy > 0 ? 1 : -1); }
+  if (Math.abs(gy) < .25) SQ.fired = false;
+}
+
+let toastTimer;
+function toast(msg) {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function updateSpecs() {
+  const E = eng(), T = turbo(), bg = boostGain();
+  let ps = 0, nm = 0;
+  for (let r = 1000; r <= E.red; r += 100) {
+    const b = T.type === 'turbo' ? smooth(T.on, T.full, r) : T.type === 'sc' ? clamp(r / (E.red * .7), 0, 1) : 0;
+    const tq = torqueAt(E, r) * (1 + b * bg) * modTorque();
+    ps = Math.max(ps, tq * r / 9549 * 1.36); nm = Math.max(nm, tq);
+  }
+  document.getElementById('specs').textContent = `≈ ${Math.round(ps)} PS · ${Math.round(nm)} Nm · ${car().mass} kg · Begrenzer ${E.red} U/min`;
+}
+
+const SLIDERS = {
+  pops: v => v === 0 ? 'aus' : `${Math.round(v * 100)} %`,
+  boostMax: v => `${v.toFixed(1)} bar`,
+  vol: v => `${Math.round(v * 100)} %`,
+  mixEx: v => `${Math.round(v * 100)} %`, mixIn: v => `${Math.round(v * 100)} %`,
+  mixTu: v => `${Math.round(v * 100)} %`, mixMech: v => `${Math.round(v * 100)} %`, mixRoad: v => `${Math.round(v * 100)} %`, mixShift: v => `${Math.round(v * 100)} %`, mixGear: v => `${Math.round(v * 100)} %`, mixBang: v => `${Math.round(v * 100)} % · Auspuff ×${bangLoud().toFixed(1)}`,
+};
+function syncUI() {
+  document.querySelectorAll('.sw').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.hex === S.cfg.color)));
+  document.getElementById('colorPick').value = S.cfg.color;
+  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode']) document.getElementById(key).value = S.cfg[key];
+  for (const [id, fmt] of Object.entries(SLIDERS)) { const inp = document.getElementById(id); inp.value = S.cfg[id]; inp.nextElementSibling.textContent = fmt(+S.cfg[id]); }
+}
+function applyCfg(key) {
+  const GB = gbox();
+  if (key === 'gearbox' || key === 'all') {
+    if (key === 'gearbox' || !S.cfg.custom || S.cfg.custom.box !== S.cfg.gearbox) S.cfg.custom = null;
+    WR = S.cfg.wheelCirc / TAU; buildGearUI();
+    S.gear = 0; S.shift = null; K.x = GATES[S.cfg.gearbox] ? GATES[S.cfg.gearbox].rest : 0; K.y = 0; K.blocked = 0; SQ.y = 0;
+  }
+  if (key === 'view') AU.sendMix(); else { AU.sendCfg(); SMP.load(); AU.sendMix(); }
+  const tt = turbo().type;
+  document.getElementById('bov').disabled = tt !== 'turbo';
+  document.getElementById('boostMax').disabled = tt === 'none';
+  const autoC = GB.paddle || S.cfg.shiftMode === 'auto';   // Automatik: Kupplung übernimmt die Elektronik
+  document.getElementById('lever').disabled = GB.paddle;
+  document.querySelector('.pedal[data-p=clutch]').classList.toggle('off', autoC);
+  if (key === 'shiftMode') toast(S.cfg.shiftMode === 'auto' ? 'Automatik: schaltet selbst, Kupplung automatisch' : 'Manuell');
+  document.getElementById('shiftHint').textContent =
+    GB.type === 'h' ? 'Knauf ziehen – vorher Kupplung treten!' :
+    GB.type === 'seq' ? 'Hebel nach unten ziehen = hoch, nach oben drücken = runter' :
+    'Linke Wippe = runter, rechte Wippe = hoch (Kupplung automatisch)';
+  updateSpecs(); if (document.getElementById('gearInfo').textContent) gearInfo();
+}
+
+const dmgRows = {};
+function drawDamage() {
+  if (!dmgRows.engine) document.querySelectorAll('.drow').forEach(r => { dmgRows[r.dataset.k] = r; });
+  const hasTurbo = turbo().type !== 'none';
+  for (const k of ['engine', 'clutch', 'gear', 'turbo']) {
+    const r = dmgRows[k], health = 1 - S.dmg[k], na = k === 'turbo' && !hasTurbo;
+    r.querySelector('i').style.width = `${health * 100}%`;
+    r.querySelector('b').textContent = na ? '–' : health <= 0 ? 'kaputt' : `${Math.round(health * 100)} %`;
+    r.classList.toggle('na', na); r.classList.toggle('crit', !na && health < .3); r.classList.toggle('warn', !na && health >= .3 && health < .7);
+  }
+  const tr = dmgRows.temp;
+  tr.querySelector('i').style.width = `${clamp((S.temp - 20) / 110, 0, 1) * 100}%`;
+  tr.querySelector('b').textContent = `${Math.round(S.temp)} °C`;
+  tr.classList.toggle('crit', S.temp > 112); tr.classList.toggle('warn', S.temp > 100 && S.temp <= 112);
+}
+function boot() {
+  carC = makeCanvas('scene'); dashC = makeCanvas('dash'); shiftC = makeCanvas('shift');
+
+  for (const [key, defs] of Object.entries(SELECTS)) {
+    const sel = document.getElementById(key);
+    for (const [id, d] of Object.entries(defs)) {
+      const o = document.createElement('option'); o.value = id; o.textContent = d.name;
+      let parent = sel;
+      if (d.group) { parent = [...sel.children].find(g => g.label === d.group); if (!parent) { parent = document.createElement('optgroup'); parent.label = d.group; sel.appendChild(parent); } }
+      parent.appendChild(o);
+    }
+  }
+  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode']) {
+    const sel = document.getElementById(key);
+    sel.addEventListener('change', () => { S.cfg[key] = sel.value; sel.blur(); if (key !== 'look' && key !== 'dashStyle') applyCfg(key); });
+  }
+  if (typeof CAR_IMG === 'undefined' && typeof CAR_ILL === 'undefined') { document.getElementById('look').disabled = true; S.cfg.look = 'vektor'; }
+  if (typeof SAMPLES === 'undefined') { document.getElementById('src').disabled = true; S.cfg.src = 'synth'; }
+  for (const [id, fmt] of Object.entries(SLIDERS)) {
+    const inp = document.getElementById(id);
+    inp.addEventListener('input', () => { S.cfg[id] = +inp.value; inp.nextElementSibling.textContent = fmt(+inp.value); if (id === 'boostMax') updateSpecs(); AU.sendMix(); });
+  }
+  const pr = document.getElementById('presets');
+  const addLabel = txt => { const l = document.createElement('div'); l.className = 'plabel'; l.textContent = txt; pr.appendChild(l); };
+  addLabel('Strassenautos');
+  let gt3Label = false;
+  for (const [name, p] of PRESETS) {
+    if (p.gt3 && !gt3Label) { addLabel('GT3 & Rennsport'); gt3Label = true; }
+    const b = document.createElement('button'); b.className = 'btn'; b.textContent = name;
+    b.addEventListener('click', () => { AU.init(); Object.assign(S.cfg, p); syncUI(); applyCfg('all'); AU.sendMix(); b.blur(); toast(name); });
+    pr.appendChild(b);
+  }
+  const sw = document.getElementById('swatches'), pick = document.getElementById('colorPick');
+  for (const [hex, name] of COLORS) {
+    const b = document.createElement('button'); b.className = 'sw'; b.style.setProperty('--c', hex); b.dataset.hex = hex;
+    b.setAttribute('aria-label', name); b.title = name;
+    b.addEventListener('click', () => { S.cfg.color = hex; syncUI(); b.blur(); });
+    sw.insertBefore(b, pick);
+  }
+  pick.addEventListener('input', () => { S.cfg.color = pick.value; syncUI(); });
+  document.getElementById('repairBtn').addEventListener('click', e => { repair(); e.currentTarget.blur(); });
+  document.getElementById('finalDrive').addEventListener('input', e => { customOf().final = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(2) + ' : 1'; gearChanged(); });
+  document.getElementById('wheelCirc').addEventListener('input', e => { S.cfg.wheelCirc = +e.target.value; e.target.nextElementSibling.textContent = S.cfg.wheelCirc.toFixed(2) + ' m'; gearChanged(); });
+  document.getElementById('gearReset').addEventListener('click', e => { S.cfg.custom = null; S.cfg.wheelCirc = 2.01; buildGearUI(); gearChanged(); toast('Getriebe auf Standard'); e.currentTarget.blur(); });
+  syncUI(); applyCfg('all');
+  {  // Quellen: Fotos von Wikimedia Commons, Motoraufnahmen von freesound.org (jeweils Creative Commons) – nur für den privaten Gebrauch
+    const c = document.getElementById('credits'), n = typeof SAMPLES !== 'undefined' ? Object.keys(SAMPLES).length : 0;
+    c.textContent = (typeof CAR_IMG !== 'undefined' ? `Fotos: Wikimedia Commons (Creative Commons, ${Object.keys(CAR_IMG).length} Autos, Cartoon-Filter). ` : '') +
+      (n ? `Motorsound: echte Aufnahmen von freesound.org (Creative Commons) für ${n} Motoren, Fehlzündungen ebenfalls echte Aufnahmen. Details in assets.js.` : '') +
+      (typeof CLACKS !== 'undefined' ? ' Schaltknack: echte Aufnahme eines Porsche 997 GT3 (Wikimedia Commons, CC BY-SA 3.0).' : '');
+  }
+
+  document.getElementById('startBtn').addEventListener('click', e => { toggleEngine(); e.currentTarget.blur(); });
+  document.getElementById('overlayBtn').addEventListener('click', () => { document.getElementById('overlay').remove(); toggleEngine(); });
+
+  document.querySelectorAll('.pedal').forEach(el => {
+    const key = el.dataset.p;
+    const set = e => { const r = el.getBoundingClientRect(); S.mouse[key] = clamp((1 - (e.clientY - r.top) / r.height) * 1.1, 0, 1); };
+    el.addEventListener('pointerdown', e => { AU.init(); if (key === 'clutch' && gbox().paddle) return; el.setPointerCapture(e.pointerId); el.dataset.down = '1'; set(e); });
+    el.addEventListener('pointermove', e => { if (el.dataset.down === '1') set(e); });
+    const up = () => { el.dataset.down = '0'; S.mouse[key] = 0; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+
+  const sh = shiftC.el;
+  const local = e => { const r = sh.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
+  sh.addEventListener('pointerdown', e => {
+    AU.init();
+    const GB = gbox(), p = local(e);
+    if (GB.paddle) { shiftDir(p.x < shiftC.w / 2 ? -1 : 1); return; }
+    sh.setPointerCapture(e.pointerId); sh.style.cursor = 'grabbing';
+    if (GB.type === 'h') { K.drag = true; hDrag(p); } else { SQ.drag = true; seqDrag(p); }
+  });
+  sh.addEventListener('pointermove', e => { const p = local(e); if (K.drag) hDrag(p); if (SQ.drag) seqDrag(p); });
+  const release = () => { K.drag = false; SQ.drag = false; SQ.fired = false; sh.style.cursor = 'grab'; };
+  sh.addEventListener('pointerup', release); sh.addEventListener('pointercancel', release);
+
+  const CONTROL = new Set(['w', 's', 'e', 'q', 'z', 'r', 'n', 'v', '0', '1', '2', '3', '4', '5', '6', '7', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ']);
+  addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (!CONTROL.has(k)) return;
+    e.preventDefault();
+    AU.init();
+    if (k === 'w' || k === 'arrowup') S.kbd.gas = true;
+    else if (k === 's' || k === 'arrowdown') S.kbd.brake = true;
+    else if (k === ' ') S.kbd.clutch = true;
+    if (e.repeat) return;
+    const GB = gbox();
+    if (k === 'e' || k === 'arrowright') shiftDir(1);
+    else if (k === 'q' || k === 'arrowleft') shiftDir(-1);
+    else if (k === 'z') toggleEngine();
+    else if (k === 'v') { S.cfg.view = S.cfg.view === 'innen' ? 'aussen' : 'innen'; syncUI(); AU.sendMix(); toast(S.cfg.view === 'innen' ? 'Innenraum' : 'Aussen'); }
+    else if (GB.type === 'h') {
+      if (k === 'n' || k === '0') hSetGear(0);
+      else if (k === 'r') hSetGear(-1);
+      else if (/[1-7]/.test(k) && +k <= GB.ratios.length) hSetGear(+k);
+    }
+  });
+  addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'arrowup') S.kbd.gas = false;
+    else if (k === 's' || k === 'arrowdown') S.kbd.brake = false;
+    else if (k === ' ') S.kbd.clutch = false;
+  });
+  addEventListener('blur', () => { S.kbd.gas = S.kbd.brake = S.kbd.clutch = false; });
+
+  const pedals = [...document.querySelectorAll('.pedal')];
+  let last = performance.now();
+  const frame = t => {
+    const dt = Math.min(.05, Math.max(0, (t - last) / 1000)); last = t;
+    const GB = gbox(), E = eng(), T = turbo();
+    const gasT = Math.max(S.kbd.gas ? 1 : 0, S.mouse.gas), brT = Math.max(S.kbd.brake ? 1 : 0, S.mouse.brake);
+    const auto = S.cfg.shiftMode === 'auto';
+    const clT = GB.paddle || auto ? 0 : Math.max(S.kbd.clutch ? 1 : 0, S.mouse.clutch);
+    S.throttle = approach(S.throttle, gasT, dt * (gasT > S.throttle ? 8 : 12));
+    S.brake = approach(S.brake, brT, dt * 6);
+    S.clutch = approach(S.clutch, clT, dt * (clT > S.clutch ? 10 : 2.8));
+
+    const steps = Math.max(1, Math.ceil(dt / .001));
+    for (let i = 0; i < steps; i++) physStep(dt / steps);
+
+    if (T.type === 'turbo') {
+      if (S.throttle > .5 && S.boost > .3) S.bovArmed = true;
+      if (S.bovArmed && S.throttle < .2) { S.bovArmed = false; AU.bov(S.boost); S.boost *= .4; }
+    } else S.bovArmed = false;
+
+    AU.update();
+    if (auto) autoShift(dt); else if (GB.type === 'dsg' && !S.shift && S.gear > 1 && S.we * RPM < E.idle + 500) shiftDir(-1);
+
+    if (GB.type === 'h' && !K.drag && S.gear === 0) {
+      if (K.y !== 0) { K.y *= Math.exp(-dt * 18); if (Math.abs(K.y) < .05) { K.y = 0; K.blocked = 0; } }
+      else { const rest = GATES[S.cfg.gearbox].rest; K.x += (rest - K.x) * Math.min(1, dt * 14); if (Math.abs(K.x - rest) < .01) K.x = rest; }
+    }
+    if (!SQ.drag) SQ.y *= Math.exp(-dt * 12);
+    PAD.l = Math.max(0, PAD.l - dt * 4); PAD.r = Math.max(0, PAD.r - dt * 4);
+
+    drawCar(dt, t); drawDash(t); drawShifter(); drawDamage();
+    for (const el of pedals) {
+      const v = el.dataset.p === 'gas' ? S.throttle : el.dataset.p === 'brake' ? S.brake : (GB.paddle ? 1 - S.clutchEng : S.clutch);
+      el.firstElementChild.style.height = `${v * 100}%`;
+      el.children[1].textContent = Math.round(v * 100);
+    }
+    document.getElementById('startBtn').textContent = S.running || S.starting > 0 ? 'Motor aus [Z]' : 'Motor starten [Z]';
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+if (typeof document !== 'undefined') boot();
+</script>
