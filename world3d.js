@@ -410,17 +410,19 @@ const W3 = (() => {
     let yaw = v * Math.tan(delta) / I.base;
     let mu = C.bigWing ? 1.35 + 1.6e-4 * v * v : C.wing || C.splitter ? 1.12 : 1;
     if (st.off) mu *= .6;
-    const aMax = mu * GRAV, aLat = v * yaw;
-    // Über der Grip-Grenze: Gierrate begrenzen und den Überschuss als Quergeschwindigkeit nach aussen aufbauen (kein automatisches Abbremsen)
-    let scrub = Math.abs(aLat) * .004;
-    st.slide = 0;
-    if (Math.abs(aLat) > aMax) { st.slide = Math.abs(aLat) - aMax; yaw *= aMax / Math.abs(aLat); st.vy += Math.sign(aLat) * st.slide * dt; scrub += st.slide * .06; }
-    else st.vy = approach(st.vy, 0, (aMax - Math.abs(aLat)) * .5 * dt);
-    st.slide += Math.abs(st.vy) * .5;
-    S.extraF = C.mass * (scrub + (st.off ? 1.2 : 0));
-    S.fx.slide = st.slide; S.fx.off = st.off ? 1 : 0;
+    const aMax = mu * GRAV;
+    // Die Vorderreifen begrenzen, wie schnell die Nase eindrehen kann
+    if (Math.abs(v * yaw) > aMax * 1.25) yaw = Math.sign(yaw) * aMax * 1.25 / Math.abs(v);
+    // Impuls: der Geschwindigkeitsvektor bleibt beim Eindrehen erhalten; die Reifen bauen die Quergeschwindigkeit nur mit höchstens aMax ab
+    const wx = Math.cos(st.h) * v + Math.sin(st.h) * st.vy, wz = Math.cos(st.h) * st.vy - Math.sin(st.h) * v;
     st.h += yaw * dt;
-    st.x += (Math.cos(st.h) * v + Math.sin(st.h) * st.vy) * dt; st.z += (Math.cos(st.h) * st.vy - Math.sin(st.h) * v) * dt;
+    const ch = Math.cos(st.h), sh = Math.sin(st.h);
+    S.v = wx * ch - wz * sh;
+    st.vy = approach(wx * sh + wz * ch, 0, aMax * dt);
+    st.slide = Math.abs(st.vy) * 2;
+    S.extraF = C.mass * (Math.abs(v * yaw) * .004 + (st.off ? 1.2 : 0));
+    S.fx.slide = st.slide; S.fx.off = st.off ? 1 : 0;
+    st.x += (ch * S.v + sh * st.vy) * dt; st.z += (ch * st.vy - sh * S.v) * dt;
     st.i = nearest(st.x, st.z, st.i);
     let i = st.i;
     st.lat = (st.x - PX[i]) * RX[i] + (st.z - PZ[i]) * RZ[i];
@@ -429,9 +431,10 @@ const W3 = (() => {
     const lim = WALL - I.W / 2 - .1;
     if (Math.abs(st.lat) > lim) {
       const s = Math.sign(st.lat), nx = RX[i] * s, nz = RZ[i] * s, push = Math.abs(st.lat) - lim;
-      st.x -= nx * push; st.z -= nz * push; st.lat = s * lim; st.vy = 0;
-      const vx = Math.cos(st.h) * v, vz = -Math.sin(st.h) * v, vn = vx * nx + vz * nz;
+      st.x -= nx * push; st.z -= nz * push; st.lat = s * lim;
+      const vx = Math.cos(st.h) * S.v + Math.sin(st.h) * st.vy, vz = Math.cos(st.h) * st.vy - Math.sin(st.h) * S.v, vn = vx * nx + vz * nz;
       if (vn > 0) {
+        st.vy = 0;
         const tx = vx - vn * nx, tz = vz - vn * nz, tl = Math.hypot(tx, tz);
         if (tl > .5) { const d = v >= 0 ? 1 : -1; st.h = Math.atan2(-tz * d, tx * d); }
         S.v = Math.sign(v) * tl * .85;
