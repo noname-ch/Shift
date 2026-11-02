@@ -22,7 +22,8 @@ h1 span{color:var(--accent)}
 canvas{display:block;width:100%}
 #scene{height:190px}
 .view3d{position:relative;height:clamp(300px,58vh,600px);background:#0c0e10;overflow:hidden;user-select:none}
-.view3d canvas{height:100%}
+.view3d canvas{height:100%;cursor:grab;touch-action:none}
+.view3d canvas:active{cursor:grabbing}
 .view3d:fullscreen{height:100vh;width:100vw}
 .hud{position:absolute;inset:0;pointer-events:none;font-family:var(--display);text-shadow:0 1px 3px #000c}
 .hud .lapbox{position:absolute;top:12px;left:12px;background:#0009;border-radius:8px;padding:8px 12px;font-variant-numeric:tabular-nums;line-height:1.25}
@@ -112,7 +113,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div class="leds"></div>
         <div class="spdbox"><b data-h="spd">0</b><em data-h="gear">N</em><small>km/h · Gang</small></div>
         <div class="off" data-h="off" hidden>NEBEN DER STRECKE</div>
-        <div class="hint">A / D lenken · C Kamera · X zurück auf die Strecke · F Vollbild</div>
+        <div class="hint">A / D lenken · Maus ziehen: umschauen · Rad: Zoom · C Kamera · X zurück auf die Strecke · F Vollbild</div>
         <button class="steer" data-steer="1" aria-label="Links lenken">◀</button>
         <button class="steer" data-steer="-1" aria-label="Rechts lenken">▶</button>
         <div class="tools"><button class="btn" data-act="cam">Kamera [C]</button><button class="btn" data-act="full">Vollbild [F]</button></div>
@@ -164,9 +165,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="field"><label for="car">Auto</label><select id="car"></select></div>
     <div class="field"><label for="scene3d">Ansicht</label><select id="scene3d"><option value="3d">3D-Rennstrecke</option><option value="2d">2D-Seitenansicht</option></select></div>
     <div class="field"><label for="cam">Kamera</label><select id="cam"><option value="chase">Verfolger</option><option value="cockpit">Cockpit</option><option value="bumper">Stossstange</option></select></div>
+    <div class="field"><label for="freeCam">Freie Kamera</label><select id="freeCam"><option value="spring">Maus ziehen, federt zurück</option><option value="hold">Maus ziehen, bleibt stehen</option><option value="off">Aus (feste Kamera)</option></select></div>
     <div class="field"><label for="dashStyle">Tacho</label><select id="dashStyle"><option value="analog">Analog-Instrumente</option><option value="gt3">GT3-Display</option></select></div>
     <div class="field"><label for="look">Darstellung</label><select id="look"><option value="grafik">Illustration (GT3-Poster)</option><option value="foto">Foto (Cartoon-Stil)</option><option value="vektor">Zeichnung</option></select></div>
     <div class="field"><label for="colorPick">Lackfarbe</label><div class="swatches" id="swatches"><input type="color" id="colorPick" aria-label="Eigene Farbe"></div></div>
+
+    <h2>Reifen &amp; Aerodynamik</h2>
+    <div class="field"><label for="tyre">Reifen</label><select id="tyre"></select></div>
+    <div class="field"><label for="wing">Heck</label><select id="wing"></select></div>
+    <div class="field"><label for="splitter">Front</label><select id="splitter"></select></div>
+    <div class="field"><label for="floor">Unterboden</label><select id="floor"></select></div>
+    <p id="aeroInfo" class="help" style="margin:6px 0"></p>
 
     <h2>Vorlagen</h2>
     <div class="presets" id="presets"></div>
@@ -907,6 +916,36 @@ const KNOBS = {
   carbon:   {name:'Carbon', col:'#0e0e10', hi:'#4a4d52', carbon:true},
   kristall: {name:'Kristall', col:'#1f5f82', hi:'#d6f5ff'},
 };
+// Reifen: mu = Haftbeiwert, k = Seitensteifigkeit (wie spitz die Haftung kommt), grass = Haftung auf Wiese relativ zur Strasse
+const TYRES = {
+  auto:  {name:'Ab Werk (passend zum Auto)'},
+  eco:   {name:'Spar-Reifen (Eco)', mu:.85, k:10, grass:.75, w:.22},
+  serie: {name:'Serienreifen (Allround)', mu:1, k:12, grass:.72, w:.26},
+  sport: {name:'Sportreifen (UHP)', mu:1.12, k:13, grass:.68, w:.28},
+  semi:  {name:'Semi-Slick (Cup)', mu:1.26, k:15, grass:.6, w:.3},
+  slick: {name:'Rennslick', mu:1.45, k:18, grass:.5, w:.32},
+};
+// Aero: cl = Abtriebsbeiwert × Fläche (m²), cd = zusätzlicher Luftwiderstand; f = Anteil des Unterboden-Abtriebs vorne
+const WINGS = {
+  auto: {name:'Ab Werk'},
+  none: {name:'Ohne Heckflügel', cl:0, cd:0},
+  lip:  {name:'Abrisskante', cl:.12, cd:.004},
+  wing: {name:'Heckflügel (Strasse)', cl:.38, cd:.025},
+  gt:   {name:'GT-Flügel (Rennsport)', cl:1.4, cd:.07},
+};
+const SPLITTERS = {
+  auto:     {name:'Ab Werk'},
+  none:     {name:'Ohne Frontsplitter', cl:0, cd:0},
+  lip:      {name:'Frontlippe', cl:.1, cd:.003},
+  splitter: {name:'Frontsplitter', cl:.35, cd:.008},
+  gt:       {name:'Rennsport-Splitter mit Canards', cl:.75, cd:.025},
+};
+const FLOORS = {
+  auto: {name:'Ab Werk'},
+  flat: {name:'Serien-Unterboden', cl:0, cd:0, f:.4},
+  diff: {name:'Heckdiffusor', cl:.4, cd:0, f:.35},
+  ge:   {name:'Ground-Effect (Venturi-Kanäle)', cl:1.7, cd:.012, f:.45},
+};
 const CARS = {
   hatch:  {name:'Kompaktwagen', mass:1250, drag:.36, wx:72, wr:21, ex:[-118,-21], hood:[82,-50],
            path:'M-112 -18 L-114 -50 Q-112 -80 -94 -86 L2 -90 Q36 -90 58 -62 L104 -52 Q118 -48 118 -32 L116 -18 Z',
@@ -994,7 +1033,8 @@ const CARS = {
            livery:{slash:[[-24,10,'#f2f0ea',18],[-12,10,'#c8321a',18]], bands:[[-24,3,'#f2f0ea']], num:'64', numAt:[20,-44]}},
 };
 const COLORS = [['#c8321a','Rot'], ['#f5a524','Gelb'], ['#1f6fd1','Blau'], ['#2f7d4a','Grün'], ['#e9e6df','Weiss'], ['#26292d','Schwarz'], ['#9aa3ad','Silber'], ['#6b3fa0','Violett']];
-const SELECTS = {car:CARS, engine:ENGINES, exhaust:EXHAUSTS, intake:INTAKES, turbo:TURBOS, bov:BOVS, gearbox:GEARBOXES, lever:LEVERS, knob:KNOBS};
+const SELECTS = {car:CARS, engine:ENGINES, exhaust:EXHAUSTS, intake:INTAKES, turbo:TURBOS, bov:BOVS, gearbox:GEARBOXES, lever:LEVERS, knob:KNOBS, tyre:TYRES, wing:WINGS, splitter:SPLITTERS, floor:FLOORS};
+const AERO_KEYS = ['tyre', 'wing', 'splitter', 'floor'];
 
 const PRESETS = [
   ['Renault Twingo',  {car:'twingo', color:'#f5a524', engine:'r3', exhaust:'serie', intake:'serie', turbo:'none', gearbox:'h5', lever:'serie', knob:'leder'}],
@@ -1028,7 +1068,7 @@ const PRESETS = [
 // ---------------- Zustand ----------------
 const S = {
   cfg: {car:'hatch', color:'#c8321a', engine:'r4', exhaust:'sport', intake:'sport', turbo:'klein', bov:'pssh', boostMax:1.1, gearbox:'h6', lever:'short', knob:'rot',
-        pops:1, view:'aussen', look:'grafik', scene3d:'3d', cam:'chase', src:'synth', dashStyle:'gt3', shiftMode:'manuell', wheelCirc:2.01, custom:null, vol:.8, mixEx:1, mixIn:1, mixTu:1, mixMech:1, mixRoad:1, mixShift:1, mixGear:.6, mixBang:1.5},
+        pops:1, view:'aussen', look:'grafik', scene3d:'3d', cam:'chase', freeCam:'spring', tyre:'auto', wing:'auto', splitter:'auto', floor:'auto', src:'synth', dashStyle:'gt3', shiftMode:'manuell', wheelCirc:2.01, custom:null, vol:.8, mixEx:1, mixIn:1, mixTu:1, mixMech:1, mixRoad:1, mixShift:1, mixGear:.6, mixBang:1.5},
   we:0, v:0, dist:0, gear:0, shift:null,
   throttle:0, brake:0, clutch:0, clutchEng:0, thrEff:0, map:0, fuelCut:false, Tc:0,
   dmg:{engine:0, clutch:0, gear:0, turbo:0}, temp:70, blown:false, knock:0, slipN:0, smoke:[], blowT:0, warn:{}, revWarnT:0,
@@ -1043,6 +1083,22 @@ const bangLoud = () => BANG_LOUD[S.cfg.exhaust] ?? 1;
 const gbox = () => { const b = GEARBOXES[S.cfg.gearbox], c = S.cfg.custom; return c && c.box === S.cfg.gearbox ? Object.assign({}, b, {ratios: c.ratios, final: c.final}) : b; };
 const turbo = () => TURBOS[S.cfg.turbo];
 const car = () => CARS[S.cfg.car] || CARS.coupe;
+// Reifen und Aero-Teile; "Ab Werk" = was das Auto serienmässig hat
+function parts(c = S.cfg) {
+  const C = car(), gt = !!C.bigWing, pick = (tab, v, def) => v && v !== 'auto' && tab[v] ? v : def;
+  return {
+    tyre: pick(TYRES, c.tyre, gt ? 'slick' : C.wing ? 'sport' : 'serie'),
+    wing: pick(WINGS, c.wing, gt ? 'gt' : C.wing ? 'wing' : C.lip ? 'lip' : 'none'),
+    splitter: pick(SPLITTERS, c.splitter, gt ? 'gt' : C.splitter ? 'splitter' : 'none'),
+    floor: pick(FLOORS, c.floor, gt ? 'diff' : 'flat'),
+  };
+}
+const tyre = () => TYRES[parts().tyre];
+function aero() {
+  const p = parts(), d = parts({}), W = WINGS[p.wing], Sp = SPLITTERS[p.splitter], F = FLOORS[p.floor];
+  const cd0 = WINGS[d.wing].cd + SPLITTERS[d.splitter].cd + FLOORS[d.floor].cd;   // Serienteile stecken schon in C.drag
+  return {clF: Sp.cl, clR: W.cl, floorF: F.cl * F.f, floorR: F.cl * (1 - F.f), cdX: W.cd + Sp.cd + F.cd - cd0, ge: p.floor === 'ge'};
+}
 const gearName = g => g === -1 ? 'R' : g === 0 ? 'N' : String(g);
 function ratioOf(g) { const GB = gbox(); return g > 0 ? GB.ratios[g - 1] * GB.final : g === -1 ? -REV * GB.final : 0; }
 function torqueAt(E, rpm) { return E.torque * Math.max(.42, 1 - ((rpm - E.peak) / E.spread) ** 2) * clamp(rpm / 900, .6, 1); }
@@ -1052,7 +1108,7 @@ function boostGain() { const T = turbo(); return T.type === 'none' ? 0 : S.cfg.b
 // ---------------- Physik ----------------
 function physStep(dt) {
   const E = eng(), GB = gbox(), T = turbo(), C = car(), D = S.dmg;
-  const MASS = C.mass, DRAG = C.drag * 1.26, ROLL = C.mass * .13;
+  const MASS = C.mass, DRAG = (C.drag + aero().cdX) * 1.26, ROLL = C.mass * .13;
   let rpm = S.we * RPM;
 
   if (S.starting > 0) {
@@ -1656,7 +1712,7 @@ function drawCar(dt, t) {
     }
   }
 
-  const C = car(), col = S.cfg.color || '#c8321a';
+  const C = car(), col = S.cfg.color || '#c8321a', P2 = parts();
   const s = Math.min(1, w / 520) * .95, gy = ry + (h - ry) * .38;
   const shake = S.running ? (Math.random() - .5) * (.5 + S.thrEff + S.dmg.engine * 2) : 0;
   ctx.save(); ctx.translate(w * .5, gy + shake); ctx.scale(s, s);
@@ -1731,12 +1787,12 @@ function drawCar(dt, t) {
     ctx.fillStyle = L.numCol || '#111'; ctx.font = `700 ${L.num.length > 2 ? 11 : 14}px "Barlow Condensed",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(L.num, nx, ny + 1);
   }
   if (C.grille) { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#0c0d0f'; ctx.fillRect(front - 10, -46, 6, 22); ctx.fillRect(front - 18, -46, 6, 22); }
-  if (C.lip) { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = shade(col, -.5); ctx.fillRect(back + 2, -62, 24, 3); }
+  if (P2.wing === 'lip') { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = shade(col, -.5); ctx.fillRect(back + 2, -62, 24, 3); }
   if (C.quad) { ctx.fillStyle = '#6b7079'; ctx.fillRect(ex - 4, ey - 9, 12, 4); ctx.fillRect(ex - 4, ey + 3, 12, 4); }
   if (C.twingo) { ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(80, -46, 5, 0, TAU); ctx.fill(); }
-  if (C.splitter) { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#111316'; ctx.fillRect(front - 18, -18, 30, 3); }
-  if (C.bigWing) { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = '#111316'; ctx.fillRect(back + 16, -84, 4, 26); ctx.fillRect(back - 8, -94, 3, 14); ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(back - 8, -90, 48, 6); }
-  if (C.wing) { ctx.fillStyle = '#15181c'; ctx.fillRect(-112, -60, 4, 12); ctx.fillRect(-126, -64, 34, 5); }
+  if (P2.splitter !== 'none') { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#111316'; ctx.fillRect(front - 18, -18, 30, 3); }
+  if (P2.wing === 'gt') { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = '#111316'; ctx.fillRect(back + 16, -84, 4, 26); ctx.fillRect(back - 8, -94, 3, 14); ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(back - 8, -90, 48, 6); }
+  if (P2.wing === 'wing') { ctx.fillStyle = '#15181c'; ctx.fillRect(-112, -60, 4, 12); ctx.fillRect(-126, -64, 34, 5); }
   if (C.rally) {
     ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.arc(-40, -42, 13, 0, TAU); ctx.fill();
     ctx.fillStyle = '#111'; ctx.font = '700 16px "Barlow Condensed",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7', -40, -41);
@@ -2093,6 +2149,9 @@ function updateSpecs() {
     ps = Math.max(ps, tq * r / 9549 * 1.36); nm = Math.max(nm, tq);
   }
   document.getElementById('specs').textContent = `≈ ${Math.round(ps)} PS · ${Math.round(nm)} Nm · ${car().mass} kg · Begrenzer ${E.red} U/min`;
+  const A = aero(), TY = tyre(), q = .6 * (200 / 3.6) ** 2, dF = q * (A.clF + A.floorF), dR = q * (A.clR + A.floorR), tot = dF + dR;
+  document.getElementById('aeroInfo').textContent = `Grip ${TY.mu.toFixed(2)} · Abtrieb bei 200 km/h ≈ ${Math.round(tot / 9.81)} kg` +
+    (tot > 1 ? ` (${Math.round(dF / tot * 100)} % vorne)` : '') + (A.cdX ? ` · Luftwiderstand ${A.cdX > 0 ? '+' : ''}${A.cdX.toFixed(3)}` : '') + (A.ge ? ' · Ground-Effect: neben der Strecke fast weg' : '') + (tot > 300 && dF / tot > .45 ? ' · Achtung: viel Abtrieb vorne → das Heck bricht leicht aus' : '');
 }
 
 const SLIDERS = {
@@ -2105,7 +2164,7 @@ const SLIDERS = {
 function syncUI() {
   document.querySelectorAll('.sw').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.hex === S.cfg.color)));
   document.getElementById('colorPick').value = S.cfg.color;
-  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode', 'scene3d', 'cam']) document.getElementById(key).value = S.cfg[key];
+  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode', 'scene3d', 'cam', 'freeCam']) document.getElementById(key).value = S.cfg[key];
   for (const [id, fmt] of Object.entries(SLIDERS)) { const inp = document.getElementById(id); inp.value = S.cfg[id]; inp.nextElementSibling.textContent = fmt(+S.cfg[id]); }
 }
 function applyCfg(key) {
@@ -2157,17 +2216,19 @@ function boot() {
       parent.appendChild(o);
     }
   }
-  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode', 'scene3d', 'cam']) {
+  for (const key of [...Object.keys(SELECTS), 'view', 'look', 'src', 'dashStyle', 'shiftMode', 'scene3d', 'cam', 'freeCam']) {
     const sel = document.getElementById(key);
     sel.addEventListener('change', () => {
       S.cfg[key] = sel.value; sel.blur();
       if (key === 'scene3d') showScene();
       else if (key === 'cam') W3.setCam(sel.value);
+      else if (key === 'freeCam') toast(sel.value === 'off' ? 'Feste Kamera' : 'Maus ziehen zum Umschauen, Rad zum Zoomen');
+      else if (AERO_KEYS.includes(key)) updateSpecs();
       else if (key !== 'look' && key !== 'dashStyle') applyCfg(key);
     });
   }
   // 3D-Strecke oder klassische 2D-Seitenansicht (ohne WebGL / Three.js nur 2D)
-  if (!W3) { S.cfg.scene3d = '2d'; document.getElementById('scene3d').disabled = true; document.getElementById('cam').disabled = true; }
+  if (!W3) { S.cfg.scene3d = '2d'; document.getElementById('scene3d').disabled = true; document.getElementById('cam').disabled = true; document.getElementById('freeCam').disabled = true; }
   const showScene = () => {
     const is3d = S.cfg.scene3d === '3d';
     document.getElementById('view3d').hidden = !is3d; carC.el.hidden = is3d;
