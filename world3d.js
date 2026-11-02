@@ -411,8 +411,8 @@ const W3 = (() => {
     let mu = C.bigWing ? 1.35 + 1.6e-4 * v * v : C.wing || C.splitter ? 1.12 : 1;
     if (st.off) mu *= .6;
     const aMax = mu * GRAV;
-    // Die Vorderreifen begrenzen, wie schnell die Nase eindrehen kann
-    if (Math.abs(v * yaw) > aMax * 1.25) yaw = Math.sign(yaw) * aMax * 1.25 / Math.abs(v);
+    // Die Vorderreifen können die Nase nur so schnell eindrehen, wie der Grip das Auto halten kann; zu schnell → engster möglicher Bogen, das Auto trägt es nach aussen
+    if (Math.abs(v * yaw) > aMax) yaw = Math.sign(yaw) * aMax / Math.abs(v);
     // Impuls: der Geschwindigkeitsvektor bleibt beim Eindrehen erhalten; die Reifen bauen die Quergeschwindigkeit nur mit höchstens aMax ab
     const wx = Math.cos(st.h) * v + Math.sin(st.h) * st.vy, wz = Math.cos(st.h) * st.vy - Math.sin(st.h) * v;
     st.h += yaw * dt;
