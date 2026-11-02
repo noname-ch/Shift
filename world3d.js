@@ -287,13 +287,13 @@ const W3 = (() => {
     const bot = Math.min(...pts.map(p => p[1]));
     if (P.wing === 'gt') {
       // GT3-Flügel weit hinten über dem Heck (Hauptblatt + Flap), an Schwanenhals-Haltern von oben aufgehängt
-      const xm = back + 30, d = yAtX(xm), wy = C.bigWing ? 87 : d + 28, xc = back + 2;
+      const xm = back + 30, d = yAtX(xm), wy = d + 12, xc = back + 2;
       const main = box(46, 4, W * .94, wingC, xc, wy, 0, body); main.rotation.z = -.08;
       const flap = box(18, 3, W * .94, wingC, xc - 25, wy + 4, 0, body); flap.rotation.z = -.35;
       for (const s of [-1, 1]) {
         const ep = box(52, 20, 2, wingC, xc - 6, wy + 1, s * W * .48, body); ep.rotation.z = -.08;
         // Schwanenhals: vom Deckel nach oben, über die Vorderkante und von oben aufs Blatt
-        const neck = new T.SplineCurve([[xm, d], [xm - 1, (d + wy) / 2], [xm - 4, wy + 12], [xc + 10, wy + 13], [xc + 2, wy + 2.5]].map(([x, y]) => new T.Vector2(x, y)));
+        const neck = new T.SplineCurve([[xm, d], [xm - 1, (d + wy) / 2], [xm - 4, wy + 8], [xc + 10, wy + 9], [xc + 2, wy + 2.5]].map(([x, y]) => new T.Vector2(x, y)));
         const cp = neck.getSpacedPoints(24), a = [], b = [];
         cp.forEach((p, k) => { const t = neck.getTangentAt(k / 24), w = 2.6 - k / 24 * .8; a.push(new T.Vector2(p.x - t.y * w, p.y + t.x * w)); b.push(new T.Vector2(p.x + t.y * w, p.y - t.x * w)); });
         const ng = new T.ExtrudeGeometry(new T.Shape(a.concat(b.reverse())), {depth: 2.5, bevelEnabled: false}); ng.translate(0, 0, -1.25);

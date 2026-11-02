@@ -229,11 +229,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div id="toast"></div>
 
 <!-- ?v= bei jeder Änderung an einer .js-Datei hochzählen, sonst mischt der Browser alte und neue Dateien aus dem Cache -->
-<script src="assets.js?v=2026-11-02c"></script>
-<script src="illus.js?v=2026-11-02c"></script>
-<script src="three.min.js?v=2026-11-02c"></script>
-<script src="elsounds.js?v=2026-11-02c"></script>
-<script src="world3d.js?v=2026-11-02c"></script>
+<script src="assets.js?v=2026-11-02d"></script>
+<script src="illus.js?v=2026-11-02d"></script>
+<script src="three.min.js?v=2026-11-02d"></script>
+<script src="elsounds.js?v=2026-11-02d"></script>
+<script src="world3d.js?v=2026-11-02d"></script>
 <script>
 // Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
 window.sampleRate = 48000;
@@ -1794,10 +1794,10 @@ function drawCar(dt, t) {
   if (P2.splitter !== 'none') { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#111316'; ctx.fillRect(front - 18, -18, 30, 3); }
   if (P2.wing === 'gt') {   // GT3-Flügel weit hinten, Schwanenhals von oben
     const back = C.path.match(/M(-?\d+)/)[1] | 0, xc = back + 2;
-    ctx.strokeStyle = '#111316'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(back + 30, -58); ctx.bezierCurveTo(back + 29, -90, back + 26, -101, back + 14, -100); ctx.quadraticCurveTo(xc + 4, -99, xc + 2, -90); ctx.stroke();
-    ctx.fillStyle = '#111316'; ctx.fillRect(xc - 32, -98, 3, 22);
-    ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(xc - 23, -89, 46, 4);
-    ctx.save(); ctx.translate(xc - 25, -93); ctx.rotate(.35); ctx.fillRect(-9, -1.5, 18, 3); ctx.restore();
+    ctx.strokeStyle = '#111316'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(back + 30, -61); ctx.bezierCurveTo(back + 29, -70, back + 26, -82, back + 14, -82); ctx.quadraticCurveTo(xc + 4, -81, xc + 2, -75); ctx.stroke();
+    ctx.fillStyle = '#111316'; ctx.fillRect(xc - 32, -83, 3, 20);
+    ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(xc - 23, -74, 46, 4);
+    ctx.save(); ctx.translate(xc - 25, -78); ctx.rotate(.35); ctx.fillRect(-9, -1.5, 18, 3); ctx.restore();
   }
   if (P2.wing === 'wing') { ctx.fillStyle = '#15181c'; ctx.fillRect(-112, -60, 4, 12); ctx.fillRect(-126, -64, 34, 5); }
   if (C.rally) {
