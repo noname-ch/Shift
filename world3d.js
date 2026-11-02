@@ -10,7 +10,7 @@ const W3 = (() => {
   const CTRL = [[0,0],[300,0],[500,0],[640,30],[700,130],[660,240],[540,280],[420,260],[320,320],[300,440],[380,540],[520,580],[620,680],[580,800],[420,840],[200,800],[0,700],[-120,560],[-60,420],[-160,300],[-340,280],[-460,180],[-440,60],[-300,0]];
   const CAMS = ['chase', 'cockpit', 'bumper'], CAM_NAMES = {chase:'Verfolger', cockpit:'Cockpit', bumper:'Stossstange'};
   let R, scene, cam, sun, wrap, N = 0, STEP = 3, PX, PZ, RX, RZ, CURV, started = false;
-  const st = {x:0, z:0, h:0, i:-1, lat:0, off:false, latA:0, acc:0, lastV:0, camH:0, shake:0, steer:0, touch:0, vy:0};
+  const st = {x:0, z:0, h:0, i:-1, lat:0, off:false, latA:0, acc:0, lastV:0, camH:0, shake:0, steer:0, touch:0, vy:0, r:0};
   const lap = {t:0, run:false, start:0, cp:0, valid:true, last:null, best:null, prev:-1, n:0};
   const car3 = {key:'', g:null, body:null, upper:null, cockpit:null, wheels:[], tail:null, flames:[], eye:new T.Vector3(), bumper:new T.Vector3(), info:null, sw:null};
   let rng = 1;
@@ -393,7 +393,7 @@ const W3 = (() => {
     return best;
   }
   function placeAt(i) {
-    st.i = i; st.x = PX[i]; st.z = PZ[i]; st.h = Math.atan2(RX[i], RZ[i]); st.camH = st.h; st.lat = 0; st.vy = 0;
+    st.i = i; st.x = PX[i]; st.z = PZ[i]; st.h = Math.atan2(RX[i], RZ[i]); st.camH = st.h; st.lat = 0; st.vy = 0; st.r = 0;
   }
   function reset() {
     if (!started) return;
@@ -406,23 +406,33 @@ const W3 = (() => {
     const C = car(), I = car3.info, kb = S.kbd;
     const target = clamp((kb.left ? 1 : 0) - (kb.right ? 1 : 0) + st.touch, -1, 1);
     st.steer = approach(st.steer, target, dt * (target === 0 ? 4.5 : Math.sign(target) !== Math.sign(st.steer) ? 6 : 2.6));
-    const v = S.v, delta = st.steer * .55 / (1 + Math.abs(v) / 16);
-    let yaw = v * Math.tan(delta) / I.base;
+    const v = S.v, L = I.base;
     let mu = C.bigWing ? 1.35 + 1.6e-4 * v * v : C.wing || C.splitter ? 1.12 : 1;
-    if (st.off) mu *= .6;
+    if (st.off) mu *= .7;
     const aMax = mu * GRAV;
-    // Die Vorderreifen können die Nase nur so schnell eindrehen, wie der Grip das Auto halten kann; zu schnell → engster möglicher Bogen, das Auto trägt es nach aussen
-    if (Math.abs(v * yaw) > aMax) yaw = Math.sign(yaw) * aMax / Math.abs(v);
-    // Impuls: der Geschwindigkeitsvektor bleibt beim Eindrehen erhalten; die Reifen bauen die Quergeschwindigkeit nur mit höchstens aMax ab
-    const wx = Math.cos(st.h) * v + Math.sin(st.h) * st.vy, wz = Math.cos(st.h) * st.vy - Math.sin(st.h) * v;
-    st.h += yaw * dt;
+    // Lenkeinschlag bei Tempo nur so weit, dass die Vorderreifen knapp über der Haftgrenze arbeiten
+    const delta = st.steer * Math.min(.55 / (1 + Math.abs(v) / 16), L * aMax / Math.max(v * v, 1) + .12);
+    // Einspurmodell: Schräglaufwinkel vorne/hinten, Seitenkraft sättigt bei der Haftgrenze, Gierträgheit.
+    // st.vy = Quergeschwindigkeit (nach links), st.r = Gierrate. Zu schnell → Reifen gesättigt, das Auto trägt seinen Schwung.
+    if (v < 2) { st.r = v * Math.tan(delta) / L; st.vy = approach(st.vy, 0, aMax * dt); }
+    else {
+      const n = 8, d = dt / n, cd = Math.cos(delta), sd = Math.sin(delta);
+      let vx = v;
+      for (let k = 0; k < n; k++) {
+        const af = Math.atan2(st.vy + L / 2 * st.r, vx) - delta, ar = Math.atan2(st.vy - L / 2 * st.r, vx);
+        const Ff = -aMax / 2 * Math.tanh(12 * af), Fr = -aMax / 2 * 1.2 * Math.tanh(16 * ar);   // hinten etwas mehr Grip: stabil, leicht untersteuernd
+        st.vy += d * (Ff * cd + Fr - vx * st.r);
+        st.r += d * (Ff * cd - Fr) * 2 / L;
+        vx += d * (st.vy * st.r - Ff * sd);
+      }
+      S.v = vx;
+    }
+    st.h += st.r * dt;
     const ch = Math.cos(st.h), sh = Math.sin(st.h);
-    S.v = wx * ch - wz * sh;
-    st.vy = approach(wx * sh + wz * ch, 0, aMax * dt);
     st.slide = Math.abs(st.vy) * 2;
-    S.extraF = C.mass * (Math.abs(v * yaw) * .004 + (st.off ? 1.2 : 0));
+    S.extraF = C.mass * (st.off ? 1.2 : 0);
     S.fx.slide = st.slide; S.fx.off = st.off ? 1 : 0;
-    st.x += (ch * S.v + sh * st.vy) * dt; st.z += (ch * st.vy - sh * S.v) * dt;
+    st.x += (ch * S.v - sh * st.vy) * dt; st.z -= (sh * S.v + ch * st.vy) * dt;
     st.i = nearest(st.x, st.z, st.i);
     let i = st.i;
     st.lat = (st.x - PX[i]) * RX[i] + (st.z - PZ[i]) * RZ[i];
@@ -432,9 +442,9 @@ const W3 = (() => {
     if (Math.abs(st.lat) > lim) {
       const s = Math.sign(st.lat), nx = RX[i] * s, nz = RZ[i] * s, push = Math.abs(st.lat) - lim;
       st.x -= nx * push; st.z -= nz * push; st.lat = s * lim;
-      const vx = Math.cos(st.h) * S.v + Math.sin(st.h) * st.vy, vz = Math.cos(st.h) * st.vy - Math.sin(st.h) * S.v, vn = vx * nx + vz * nz;
+      const vx = Math.cos(st.h) * S.v - Math.sin(st.h) * st.vy, vz = -Math.sin(st.h) * S.v - Math.cos(st.h) * st.vy, vn = vx * nx + vz * nz;
       if (vn > 0) {
-        st.vy = 0;
+        st.vy = 0; st.r = 0;
         const tx = vx - vn * nx, tz = vz - vn * nz, tl = Math.hypot(tx, tz);
         if (tl > .5) { const d = v >= 0 ? 1 : -1; st.h = Math.atan2(-tz * d, tx * d); }
         S.v = Math.sign(v) * tl * .85;
@@ -445,7 +455,7 @@ const W3 = (() => {
     }
     S.fx.wall = Math.abs(st.lat) > lim - .25 && Math.abs(S.v) > 2 ? 1 : 0;   // an der Planke entlang: Schleifgeräusch
     // Karosserie: Wanken in Kurven, Nicken beim Bremsen/Beschleunigen
-    st.latA += (v * yaw - st.latA) * Math.min(1, dt * 6);
+    st.latA += (S.v * st.r - st.latA) * Math.min(1, dt * 6);
     st.acc += ((S.v - st.lastV) / Math.max(dt, 1e-3) - st.acc) * Math.min(1, dt * 5); st.lastV = S.v;
     const soft = C.bigWing ? .0028 : .006;
     car3.g.position.set(st.x, 0, st.z); car3.g.rotation.y = st.h;
