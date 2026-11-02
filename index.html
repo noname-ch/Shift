@@ -229,11 +229,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div id="toast"></div>
 
 <!-- ?v= bei jeder Änderung an einer .js-Datei hochzählen, sonst mischt der Browser alte und neue Dateien aus dem Cache -->
-<script src="assets.js?v=2026-11-02b"></script>
-<script src="illus.js?v=2026-11-02b"></script>
-<script src="three.min.js?v=2026-11-02b"></script>
-<script src="elsounds.js?v=2026-11-02b"></script>
-<script src="world3d.js?v=2026-11-02b"></script>
+<script src="assets.js?v=2026-11-02c"></script>
+<script src="illus.js?v=2026-11-02c"></script>
+<script src="three.min.js?v=2026-11-02c"></script>
+<script src="elsounds.js?v=2026-11-02c"></script>
+<script src="world3d.js?v=2026-11-02c"></script>
 <script>
 // Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
 window.sampleRate = 48000;
@@ -1792,7 +1792,13 @@ function drawCar(dt, t) {
   if (C.quad) { ctx.fillStyle = '#6b7079'; ctx.fillRect(ex - 4, ey - 9, 12, 4); ctx.fillRect(ex - 4, ey + 3, 12, 4); }
   if (C.twingo) { ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(80, -46, 5, 0, TAU); ctx.fill(); }
   if (P2.splitter !== 'none') { const front = -(C.path.match(/M(-?\d+)/)[1] | 0); ctx.fillStyle = '#111316'; ctx.fillRect(front - 18, -18, 30, 3); }
-  if (P2.wing === 'gt') { const back = C.path.match(/M(-?\d+)/)[1] | 0; ctx.fillStyle = '#111316'; ctx.fillRect(back + 16, -84, 4, 26); ctx.fillRect(back - 8, -94, 3, 14); ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(back - 8, -90, 48, 6); }
+  if (P2.wing === 'gt') {   // GT3-Flügel weit hinten, Schwanenhals von oben
+    const back = C.path.match(/M(-?\d+)/)[1] | 0, xc = back + 2;
+    ctx.strokeStyle = '#111316'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(back + 30, -58); ctx.bezierCurveTo(back + 29, -90, back + 26, -101, back + 14, -100); ctx.quadraticCurveTo(xc + 4, -99, xc + 2, -90); ctx.stroke();
+    ctx.fillStyle = '#111316'; ctx.fillRect(xc - 32, -98, 3, 22);
+    ctx.fillStyle = (L && L.wingCol) || '#111316'; ctx.fillRect(xc - 23, -89, 46, 4);
+    ctx.save(); ctx.translate(xc - 25, -93); ctx.rotate(.35); ctx.fillRect(-9, -1.5, 18, 3); ctx.restore();
+  }
   if (P2.wing === 'wing') { ctx.fillStyle = '#15181c'; ctx.fillRect(-112, -60, 4, 12); ctx.fillRect(-126, -64, 34, 5); }
   if (C.rally) {
     ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.arc(-40, -42, 13, 0, TAU); ctx.fill();
