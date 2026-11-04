@@ -390,9 +390,9 @@ const W3 = (() => {
   const gltf = T.GLTFLoader ? new T.GLTFLoader() : null, models = {};
   const WHEEL = /wheel|tire|tyre|(^|[^t])rim|reifen|felge/i, NOT_WHEEL = /steer|lenk|spare|arch|well|cal+ip|brems|fender|cover/i, GLASS = /glass|glas|window|scheibe|light|lamp/i;
   // Sketchfab-Exporte markieren oft alles als transparent (alphaMode BLEND); dann entscheidet die Sortierung, ob der Innenraum durch die Karosserie scheint.
-  // Ausser Glas und Lichtern daher deckend zeichnen, Aussparungen (Gitter) bleiben über alphaTest erhalten.
-  const solidify = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.transparent && x.opacity >= 1 && !GLASS.test(x.name)) { x.transparent = false; x.alphaTest = .5; x.needsUpdate = true; } }); return gl; };
-  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(solidify)); }
+  // Ausser Glas und Lichtern daher deckend zeichnen, Aussparungen (Gitter) bleiben über alphaTest erhalten – ausser bei opaque: Alpha der Textur ist dort nur Restmüll.
+  const solidify = (gl, M) => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.transparent && x.opacity >= 1 && !GLASS.test(x.name)) { x.transparent = false; x.depthWrite = true; x.alphaTest = M.opaque ? 0 : .5; x.needsUpdate = true; } }); return gl; };
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => solidify(gl, M))); }
   function fitModel(src, M, col) {
     const I = car3.info, g = car3.g, body = car3.body, m = src.clone(true);
     m.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
