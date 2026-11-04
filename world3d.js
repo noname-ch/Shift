@@ -388,7 +388,7 @@ const W3 = (() => {
       for (let k = 0; k < 3; k++) { const sp = new T.Mesh(new T.BoxGeometry(r * 1.2, r * .13, .03), trim); sp.rotation.z = k * Math.PI / 3; sp.position.z = s * (tw / 2 + .012); spin.add(sp); }
       car3.wheels.push({piv, spin, front: x > 0});
     }
-    car3.g = g; car3.body = body; car3.upper = upper; car3.cockpit = ck; car3.tail = tailM; car3.aero = aero; car3.aeroArgs = [P, C, aeroMats, {front, back, bot, yAtX, fx}];
+    car3.g = g; car3.body = body; car3.upper = upper; car3.lower = lower; car3.cockpit = ck; car3.tail = tailM; car3.aero = aero; car3.aeroArgs = [P, C, aeroMats, {front, back, bot, yAtX, fx}];
     car3.info = {W: W * SC, len: (front - back) * SC, base: 2 * C.wx * SC, r, back: back * SC, belt, top};
     scene.add(g);
     applyCam();
@@ -431,7 +431,7 @@ const W3 = (() => {
     return gl;
   };
   // Metallic-Lacke der Modelle brauchen etwas zum Spiegeln, sonst werden sie fast schwarz: kleine Umgebung aus Himmel, Boden und zwei Lichtflächen
-  // ENV_K: Stärke der Spiegelung – voll (1) wirken die Lacke ausgewaschen weiss, ohne fast schwarz
+  // ENV_K: Stärke der Spiegelung – voll (1) wirken die Lacke ausgewaschen weiss, ohne fast schwarz; matte Materialien nur ein Drittel, sonst verblassen die Farben
   let envTex = null;
   const ENV_K = .45;
   const modelEnv = () => {
@@ -444,14 +444,26 @@ const W3 = (() => {
     const pm = new T.PMREMGenerator(R); envTex = pm.fromScene(es, .04).texture; pm.dispose();
     return envTex;
   };
-  const addEnv = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.isMeshStandardMaterial && !x.envMap) { x.envMap = modelEnv(); x.envMapIntensity = ENV_K; x.needsUpdate = true; } }); return gl; };
-  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => addEnv(splitWheels(solidify(gl, M))))); }
+  const addEnv = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.isMeshStandardMaterial && !x.envMap) { x.envMap = modelEnv(); x.envMapIntensity = ENV_K * (x.metalness > .3 || x.metalnessMap ? 1 : .35); x.needsUpdate = true; } }); return gl; };
+  // sat: Farbsättigung der Modell-Texturen anheben (blasse Lackierungen), direkt nach dem Textur-Lesen im Shader
+  const saturate = (gl, M) => {
+    if (M.sat) gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) {
+      x.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n\tdiffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(.2126, .7152, .0722))), diffuseColor.rgb, ${M.sat.toFixed(2)}), 0.);`); };
+      x.customProgramCacheKey = () => 'sat' + M.sat;
+    } });
+    return gl;
+  };
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => addEnv(saturate(splitWheels(solidify(gl, M)), M)))); }
   // Kontur des eingepassten Modells mit Strahlen vermessen (Körper-Einheiten), wo nichts getroffen wird, gilt die Silhouette
-  function measure(fit, sil, W) {
+  // Strahl in Körper-Einheiten auf das eingepasste Modell, liefert den ersten Treffer (oder null)
+  function caster(fit) {
     const body = fit.parent, rc = new T.Raycaster(), o = new T.Vector3(), d = new T.Vector3();
     body.updateMatrixWorld(true);
     const mw = body.matrixWorld, inv = mw.clone().invert();
-    const cast = (ox, oy, oz, dx, dy) => { o.set(ox, oy, oz).applyMatrix4(mw); d.set(dx, dy, 0).transformDirection(mw); rc.set(o, d); const h = rc.intersectObject(fit, true)[0]; return h ? h.point.applyMatrix4(inv) : null; };
+    return (ox, oy, oz, dx, dy) => { o.set(ox, oy, oz).applyMatrix4(mw); d.set(dx, dy, 0).transformDirection(mw); rc.set(o, d); const h = rc.intersectObject(fit, true)[0]; return h ? h.point.applyMatrix4(inv) : null; };
+  }
+  function measure(fit, sil, W) {
+    const cast = caster(fit);
     const yAtX = x => { let y = null; for (const z of [0, W * .2, -W * .2]) { const p = cast(x, 500, z, 0, -1); if (p && (y === null || p.y > y)) y = p.y; } return y ?? sil.yAtX(x); };
     const fx = y => { const p = cast(sil.front + 100, y, 0, -1, 0); return p ? p.x : sil.fx(y); };
     const under = cast(sil.front - 12, -50, 0, 0, 1), bot = under ? under.y : sil.bot;
@@ -511,6 +523,17 @@ const W3 = (() => {
     const [P, C, mats, sil] = car3.aeroArgs;
     for (const k in car3.aero) { const a = car3.aero[k]; for (const o of a.children.slice()) { a.remove(o); o.traverse(x => x.geometry && x.geometry.dispose()); } a.visible = !!S.cfg[k] && S.cfg[k] !== 'auto'; }
     if (Object.values(car3.aero).some(a => a.visible)) buildAero(car3.aero, P, C, measure(fit, sil, sz.z * s / SC), mats);
+    // Cockpit-Kamera ins Modell: 30 cm unter dem Dach über dem Fahrersitz (die Silhouette ist meist höher als der Rennwagen)
+    // Steckt das Auge in Sitz, Kopfstütze oder Käfig (Hindernis keine 30 cm voraus), in 5-cm-Schritten nach vorne rücken
+    const cast = caster(fit), e = car3.eye;
+    for (let k = 0; k < 12 && M.cockpit !== 'sim'; k++) {
+      const roof = cast(e.x, 500, e.z, 0, -1);
+      if (roof) e.y = roof.y - .3 / SC;
+      const ahead = cast(e.x, e.y, e.z, 1, 0);
+      if (!ahead || ahead.x - e.x > .3 / SC) break;
+      e.x += .05 / SC;
+    }
+    car3.simCk = M.cockpit === 'sim';
     if (M.eye) car3.eye.set(M.eye[0] / SC, M.eye[1] / SC, M.eye[2] / SC);
     car3.model = fit;
     applyCam();
@@ -656,7 +679,10 @@ const W3 = (() => {
   const qLook = new T.Quaternion().setFromEuler(new T.Euler(-.06, -Math.PI / 2, 0, 'YXZ')), tmpQ = new T.Quaternion(), tmpV = new T.Vector3(), lookQ = new T.Quaternion(), lookE = new T.Euler();
   function applyCam() {
     const m = S.cfg.cam;
-    if (car3.cockpit) { car3.cockpit.visible = m === 'cockpit' && !car3.model; car3.upper.visible = m !== 'cockpit' && !car3.model; }
+    // Modelle ohne Innenraum/Glas (cockpit: 'sim'): im Cockpit das eigene Silhouetten-Cockpit statt des Modells
+    const sim = car3.model && car3.simCk && m === 'cockpit';
+    if (car3.cockpit) { car3.cockpit.visible = m === 'cockpit' && (!car3.model || sim); car3.upper.visible = m !== 'cockpit' && !car3.model; }
+    if (car3.model) { car3.model.visible = !sim; car3.lower.visible = sim; }
     cam.near = m === 'chase' ? .2 : .05; cam.updateProjectionMatrix();
   }
   function camStep(dt) {

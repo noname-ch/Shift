@@ -2,6 +2,8 @@
 // Fehlt die Datei oder lädt sie nicht, fährt weiter das aus der Silhouette extrudierte Auto. Das Modell wird auf die Länge des Silhouetten-Autos skaliert.
 // rot: Drehung um die Hochachse in Grad, falls das Auto quer oder rückwärts fährt (0 / 90 / 180 / -90; ohne Angabe: längste Seite = Fahrtrichtung, Front nach +X).
 // paint: RegExp auf Material- oder Objektnamen, die die gewählte Lackfarbe bekommen (ohne Angabe bleibt die Originallackierung).
+// cockpit: 'sim' für Modelle ohne Innenraum oder mit undurchsichtigen Scheiben – die Cockpit-Kamera zeigt dann das einfache eigene Cockpit.
+// sat: Farbsättigung verstärken (1 = original, 1.5 = deutlich kräftiger), für blasse Lackierungen.
 // opaque: true, wenn Karosserie oder Innenraum Löcher haben bzw. durchscheinen (Sketchfab exportiert manchmal einen sinnlosen Alphakanal).
 // Räder mit Namen wie wheel/tire/tyre/rim drehen und lenken mit, sonst bleiben sie stehen.
 const CAR_MODELS = {
@@ -12,9 +14,9 @@ const CAR_MODELS = {
           url: 'https://sketchfab.com/3d-models/porsche-992-gt3r-rexy-858bfc7639cd44d2bc0f9c1963d00161'},
   r8lms: {file: 'models/r8lms.glb', title: '2019 Audi R8 LMS GT3', author: 'Ddiaz Design', license: 'CC BY-NC-SA 4.0',
           url: 'https://sketchfab.com/3d-models/2019-audi-r8-lms-gt3-026a2639ecce4f0ea23f0264bd5cc243'},
-  twingo: {file: 'models/twingo.glb', rot: -90, title: 'Renault Twingo', author: 'GraveDiggerMonsterTruck', license: 'CC BY 4.0',
+  twingo: {file: 'models/twingo.glb', rot: -90, cockpit: 'sim', paint: '^object_1[57]$', title: 'Renault Twingo', author: 'GraveDiggerMonsterTruck', license: 'CC BY 4.0',
            url: 'https://sketchfab.com/3d-models/renault-twingo-a96fb412e30f450c864f74e2124ac2de'},
-  m4gt3: {file: 'models/m4gt3.glb', title: '2021 BMW M4 GT3', author: 'OUTPISTON', license: 'CC BY-NC-SA 4.0',
+  m4gt3: {file: 'models/m4gt3.glb', sat: 1.5, title: '2021 BMW M4 GT3', author: 'OUTPISTON', license: 'CC BY-NC-SA 4.0',
           url: 'https://sketchfab.com/3d-models/2021-bmw-m4-gt3-4ac4a18be9c24500b4f4f813cea1145f'},
   // Rennversion statt Strassen-M3; mit Blender verkleinert (Decimate 0.4, Texturen 1024 px WebP), 40 → 22 MB
   m3comp: {file: 'models/m3comp.glb', title: '2026 BMW M3 Touring 24H Shell Helix', author: 'Dave Love SketchFab', license: 'CC BY 4.0',
