@@ -12,4 +12,16 @@ const CAR_MODELS = {
           url: 'https://sketchfab.com/3d-models/porsche-992-gt3r-rexy-858bfc7639cd44d2bc0f9c1963d00161'},
   r8lms: {file: 'models/r8lms.glb', title: '2019 Audi R8 LMS GT3', author: 'Ddiaz Design', license: 'CC BY-NC-SA 4.0',
           url: 'https://sketchfab.com/3d-models/2019-audi-r8-lms-gt3-026a2639ecce4f0ea23f0264bd5cc243'},
+  twingo: {file: 'models/twingo.glb', rot: -90, title: 'Renault Twingo', author: 'GraveDiggerMonsterTruck', license: 'CC BY 4.0',
+           url: 'https://sketchfab.com/3d-models/renault-twingo-a96fb412e30f450c864f74e2124ac2de'},
+  m4gt3: {file: 'models/m4gt3.glb', title: 'BMW M4 GT3', author: 'kevin (ケビン)', license: 'CC BY 4.0',
+          url: 'https://sketchfab.com/3d-models/bmw-m4-gt3-cb6ce32d23e549a289dcc264008abcda'},
+  // mit Blender verkleinert (Decimate 0.6, Texturen 1024 px WebP), 46 → 15 MB
+  m3comp: {file: 'models/m3comp.glb', title: '2021 BMW M3 Competition (G80)', author: 'DisneyCars', license: 'CC BY 4.0',
+           url: 'https://sketchfab.com/3d-models/2021-bmw-m3-competition-g80-a9027a26b7ee4da4b564d939b6c27559'},
+  mcl720: {file: 'models/mcl720.glb', title: '2019 McLaren 720S GT3', author: 'Ddiaz Design', license: 'CC BY 4.0',
+           url: 'https://sketchfab.com/3d-models/2019-mclaren-720s-gt3-d5600ac3eed54b808ad3c154ca2c8f69'},
+  // mit Blender verkleinert (Decimate 0.5, Texturen 1024 px WebP), 39 → 17 MB
+  f296:  {file: 'models/f296.glb', title: 'Ferrari 296 GT3', author: 'www.vecarz.com | vecarz', license: 'CC BY-NC 4.0',
+          url: 'https://sketchfab.com/3d-models/ferrari-296-gt3-wwwvecarzcom-a463226115184535928ec75660c6571f'},
 };

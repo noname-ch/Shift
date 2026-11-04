@@ -234,9 +234,43 @@ const W3 = (() => {
   }
 
   // ---------------- Auto ----------------
-  const carKey = () => { const P = parts(); return [S.cfg.car, S.cfg.color, P.tyre, P.wing, P.splitter, P.floor].join('|'); };
+  // S.cfg.wing usw. zusätzlich roh: „Ab Werk“ und das gleiche Teil explizit gewählt sehen beim Sketchfab-Modell verschieden aus
+  const carKey = () => { const P = parts(); return [S.cfg.car, S.cfg.color, P.tyre, P.wing, P.splitter, P.floor, S.cfg.wing, S.cfg.splitter, S.cfg.floor].join('|'); };
   // Teile aus dem Modell-Cache (userData.shared) teilen Geometrie und Texturen mit dem geladenen glTF und werden nicht freigegeben
   function disposeTree(o) { if (o.userData.shared) return; if (o.geometry) o.geometry.dispose(); const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const x of ms) { if (x.map) x.map.dispose(); x.dispose(); } for (const c of o.children) disposeTree(c); }
+  // Aero-Teile nach Wahl P an eine Karosserie-Kontur bauen – Silhouette oder vermessenes Sketchfab-Modell (Körper-Einheiten):
+  // front/back/bot = Ausdehnung, W = Breite, yAtX(x) = Oberkante an Stelle x, fx(y) = Vorderkante in Höhe y
+  function buildAero(aero, P, C, f, m) {
+    const {front, back, bot, W, yAtX, fx} = f, {wingC, trim, dark} = m;
+    if (P.wing === 'gt') {
+      // GT3-Flügel weit hinten über dem Heck (Hauptblatt + Flap), an Schwanenhals-Haltern von oben aufgehängt
+      const xm = back + 30, d = yAtX(xm), wy = d + 12, xc = back + 2;
+      const main = box(46, 4, W * .94, wingC, xc, wy, 0, aero.wing); main.rotation.z = -.08;
+      const flap = box(18, 3, W * .94, wingC, xc - 25, wy + 4, 0, aero.wing); flap.rotation.z = -.35;
+      for (const s of [-1, 1]) {
+        const ep = box(52, 20, 2, wingC, xc - 6, wy + 1, s * W * .48, aero.wing); ep.rotation.z = -.08;
+        // Schwanenhals: vom Deckel nach oben, über die Vorderkante und von oben aufs Blatt
+        const neck = new T.SplineCurve([[xm, d], [xm - 1, (d + wy) / 2], [xm - 4, wy + 8], [xc + 10, wy + 9], [xc + 2, wy + 2.5]].map(([x, y]) => new T.Vector2(x, y)));
+        const cp = neck.getSpacedPoints(24), a = [], b = [];
+        cp.forEach((p, k) => { const t = neck.getTangentAt(k / 24), w = 2.6 - k / 24 * .8; a.push(new T.Vector2(p.x - t.y * w, p.y + t.x * w)); b.push(new T.Vector2(p.x + t.y * w, p.y - t.x * w)); });
+        const ng = new T.ExtrudeGeometry(new T.Shape(a.concat(b.reverse())), {depth: 2.5, bevelEnabled: false}); ng.translate(0, 0, -1.25);
+        const nm = new T.Mesh(ng, trim); nm.position.z = s * W * .2; nm.castShadow = true; aero.wing.add(nm);
+      }
+    }
+    if (P.wing === 'wing') { const d = yAtX(back + 19); box(34, 5, W * .86, trim, back + 19, d + 13.5, 0, aero.wing); for (const s of [-1, 1]) box(4, 12, 3, trim, back + 18, d + 6, s * W * .25, aero.wing); }
+    if (P.wing === 'lip') box(16, 3, W * .9, trim, back + 8, yAtX(back + 8) + 1, 0, aero.wing);
+    if (P.splitter === 'lip') box(16, 2.5, W * .96, trim, front - 5, bot - .5, 0, aero.splitter);
+    if (P.splitter === 'splitter' || P.splitter === 'gt') box(P.splitter === 'gt' ? 36 : 30, 3, W * 1.02, trim, front - 6, bot - .5, 0, aero.splitter);
+    if (P.splitter === 'gt') for (const s of [-1, 1]) { const c = box(14, 1.6, 7, trim, fx(bot + 14) - 4, bot + 14, s * W * .49, aero.splitter); c.rotation.z = .3; }
+    if (P.floor !== 'flat') {   // Diffusor-Finnen hinten, beim Ground-Effect dazu Seitenschweller und flacher Boden
+      const ge = P.floor === 'ge', n = ge ? 5 : 4;
+      for (let k = 0; k < n; k++) box(ge ? 26 : 18, ge ? 12 : 9, 1.5, trim, back + (ge ? 11 : 8), bot + (ge ? 4 : 3), (k / (n - 1) - .5) * W * .7, aero.floor);
+      if (ge) {
+        for (const s of [-1, 1]) box(2 * C.wx - 2 * C.wr - 12, 5, 3, trim, 0, bot + 1.5, s * (W / 2 + 1), aero.floor);
+        box(front - back - 16, 1.5, W * .96, dark, (front + back) / 2, bot - 1, 0, aero.floor);
+      }
+    }
+  }
   function buildCar() {
     const C = car(), col = S.cfg.color || '#c8321a', key = carKey(), P = parts();
     if (key === car3.key) return;
@@ -288,34 +322,11 @@ const W3 = (() => {
     // Höhe der Karosserie-Oberkante an Stelle x (für Flügel auf beliebigen Autos)
     const yAtX = x => { let y = 0; for (let k = 0; k < pts.length; k++) { const a = pts[k], b = pts[(k + 1) % pts.length]; if ((a[0] - x) * (b[0] - x) <= 0 && a[0] !== b[0]) y = Math.max(y, a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0])); } return y; };
     const bot = Math.min(...pts.map(p => p[1]));
-    if (P.wing === 'gt') {
-      // GT3-Flügel weit hinten über dem Heck (Hauptblatt + Flap), an Schwanenhals-Haltern von oben aufgehängt
-      const xm = back + 30, d = yAtX(xm), wy = d + 12, xc = back + 2;
-      const main = box(46, 4, W * .94, wingC, xc, wy, 0, body); main.rotation.z = -.08;
-      const flap = box(18, 3, W * .94, wingC, xc - 25, wy + 4, 0, body); flap.rotation.z = -.35;
-      for (const s of [-1, 1]) {
-        const ep = box(52, 20, 2, wingC, xc - 6, wy + 1, s * W * .48, body); ep.rotation.z = -.08;
-        // Schwanenhals: vom Deckel nach oben, über die Vorderkante und von oben aufs Blatt
-        const neck = new T.SplineCurve([[xm, d], [xm - 1, (d + wy) / 2], [xm - 4, wy + 8], [xc + 10, wy + 9], [xc + 2, wy + 2.5]].map(([x, y]) => new T.Vector2(x, y)));
-        const cp = neck.getSpacedPoints(24), a = [], b = [];
-        cp.forEach((p, k) => { const t = neck.getTangentAt(k / 24), w = 2.6 - k / 24 * .8; a.push(new T.Vector2(p.x - t.y * w, p.y + t.x * w)); b.push(new T.Vector2(p.x + t.y * w, p.y - t.x * w)); });
-        const ng = new T.ExtrudeGeometry(new T.Shape(a.concat(b.reverse())), {depth: 2.5, bevelEnabled: false}); ng.translate(0, 0, -1.25);
-        const nm = new T.Mesh(ng, trim); nm.position.z = s * W * .2; nm.castShadow = true; body.add(nm);
-      }
-    }
-    if (P.wing === 'wing') { const d = yAtX(back + 19); box(34, 5, W * .86, trim, back + 19, d + 13.5, 0, body); for (const s of [-1, 1]) box(4, 12, 3, trim, back + 18, d + 6, s * W * .25, body); }
-    if (P.wing === 'lip') box(16, 3, W * .9, trim, back + 8, yAtX(back + 8) + 1, 0, body);
-    if (P.splitter === 'lip') box(16, 2.5, W * .96, trim, front - 5, bot - .5, 0, body);
-    if (P.splitter === 'splitter' || P.splitter === 'gt') box(P.splitter === 'gt' ? 36 : 30, 3, W * 1.02, trim, front - 6, bot - .5, 0, body);
-    if (P.splitter === 'gt') for (const s of [-1, 1]) { const c = box(14, 1.6, 7, trim, fx(bot + 14) - 4, bot + 14, s * W * .49, body); c.rotation.z = .3; }
-    if (P.floor !== 'flat') {   // Diffusor-Finnen hinten, beim Ground-Effect dazu Seitenschweller und flacher Boden
-      const ge = P.floor === 'ge', n = ge ? 5 : 4;
-      for (let k = 0; k < n; k++) box(ge ? 26 : 18, ge ? 12 : 9, 1.5, trim, back + (ge ? 11 : 8), bot + (ge ? 4 : 3), (k / (n - 1) - .5) * W * .7, body);
-      if (ge) {
-        for (const s of [-1, 1]) box(2 * C.wx - 2 * C.wr - 12, 5, 3, trim, 0, bot + 1.5, s * (W / 2 + 1), body);
-        box(front - back - 16, 1.5, W * .96, dark, (front + back) / 2, bot - 1, 0, body);
-      }
-    }
+    // Aero-Teile in eigenen Gruppen: bei Sketchfab-Modellen bleiben sie sichtbar, wenn im Menü etwas anderes als „Ab Werk“ gewählt ist
+    const aero = {wing: new T.Group(), splitter: new T.Group(), floor: new T.Group()};
+    for (const k in aero) body.add(aero[k]);
+    const aeroMats = {wingC, trim, dark};
+    buildAero(aero, P, C, {front, back, bot, W, yAtX, fx}, aeroMats);
     if (C.scoop) box(30, 7, W * .3, new T.MeshStandardMaterial({color: shade(col, -.6)}), 81, 55, 0, body);
     if (C.bed) box(92, 1, W * .86, dark, -80, 62.6, 0, body);
     if (C.rally) box(30, 4, WU * .6, trim, -15, top + 1.5, 0, body);
@@ -377,7 +388,7 @@ const W3 = (() => {
       for (let k = 0; k < 3; k++) { const sp = new T.Mesh(new T.BoxGeometry(r * 1.2, r * .13, .03), trim); sp.rotation.z = k * Math.PI / 3; sp.position.z = s * (tw / 2 + .012); spin.add(sp); }
       car3.wheels.push({piv, spin, front: x > 0});
     }
-    car3.g = g; car3.body = body; car3.upper = upper; car3.cockpit = ck; car3.tail = tailM;
+    car3.g = g; car3.body = body; car3.upper = upper; car3.cockpit = ck; car3.tail = tailM; car3.aero = aero; car3.aeroArgs = [P, C, aeroMats, {front, back, bot, yAtX, fx}];
     car3.info = {W: W * SC, len: (front - back) * SC, base: 2 * C.wx * SC, r, back: back * SC, belt, top};
     scene.add(g);
     applyCam();
@@ -392,7 +403,46 @@ const W3 = (() => {
   // Sketchfab-Exporte markieren oft alles als transparent (alphaMode BLEND); dann entscheidet die Sortierung, ob der Innenraum durch die Karosserie scheint.
   // Ausser Glas und Lichtern daher deckend zeichnen, Aussparungen (Gitter) bleiben über alphaTest erhalten – ausser bei opaque: Alpha der Textur ist dort nur Restmüll.
   const solidify = (gl, M) => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.transparent && x.opacity >= 1 && !GLASS.test(x.name)) { x.transparent = false; x.depthWrite = true; x.alphaTest = M.opaque ? 0 : .5; x.needsUpdate = true; } }); return gl; };
-  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => solidify(gl, M))); }
+  // Manche Modelle haben alle vier Reifen/Felgen in einem Mesh (nur am Materialnamen erkennbar): einmal beim Laden nach Ecken in vier Meshes teilen,
+  // die dann „wheel“ im Namen tragen und wie benannte Räder drehen und lenken
+  const splitWheels = gl => {
+    const list = [], v = new T.Vector3();
+    gl.scene.updateMatrixWorld(true);
+    gl.scene.traverse(o => { if (o.isMesh && !WHEEL.test(o.name) && [].concat(o.material).some(x => WHEEL.test(x.name) && !NOT_WHEEL.test(x.name))) list.push(o); });
+    for (const o of list) {
+      const b = new T.Box3().setFromObject(o), s = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3());
+      const sx = s.x > 1.6 * s.y, sz = s.z > 1.6 * s.y, geo = o.geometry, pos = geo.attributes.position;
+      if (!sx && !sz) continue;   // ein einzelnes Rad
+      const idx = geo.index ? geo.index.array : Array.from({length: pos.count}, (_, i) => i), parts = {};
+      for (let t = 0; t < idx.length; t += 3) {
+        v.set(0, 0, 0); for (let k = 0; k < 3; k++) v.add(new T.Vector3().fromBufferAttribute(pos, idx[t + k]).applyMatrix4(o.matrixWorld));
+        v.divideScalar(3); const q = (sx && v.x > c.x ? 'a' : 'b') + (sz && v.z > c.z ? 'a' : 'b');
+        (parts[q] = parts[q] || []).push(idx[t], idx[t + 1], idx[t + 2]);
+      }
+      for (const [q, ids] of Object.entries(parts)) {
+        const g2 = new T.BufferGeometry(); for (const k in geo.attributes) g2.setAttribute(k, geo.attributes[k]); g2.setIndex(ids);
+        // Grenzen nur aus den benutzten Ecken (die Attribute enthalten alle vier Räder)
+        g2.boundingBox = new T.Box3(); for (const i of ids) g2.boundingBox.expandByPoint(v.fromBufferAttribute(pos, i));
+        g2.boundingSphere = g2.boundingBox.getBoundingSphere(new T.Sphere());
+        const w = new T.Mesh(g2, o.material); w.name = o.name + '_wheel_' + q; w.position.copy(o.position); w.quaternion.copy(o.quaternion); w.scale.copy(o.scale); o.parent.add(w);
+      }
+      o.parent.remove(o);
+    }
+    return gl;
+  };
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => splitWheels(solidify(gl, M)))); }
+  // Kontur des eingepassten Modells mit Strahlen vermessen (Körper-Einheiten), wo nichts getroffen wird, gilt die Silhouette
+  function measure(fit, sil, W) {
+    const body = fit.parent, rc = new T.Raycaster(), o = new T.Vector3(), d = new T.Vector3();
+    body.updateMatrixWorld(true);
+    const mw = body.matrixWorld, inv = mw.clone().invert();
+    const cast = (ox, oy, oz, dx, dy) => { o.set(ox, oy, oz).applyMatrix4(mw); d.set(dx, dy, 0).transformDirection(mw); rc.set(o, d); const h = rc.intersectObject(fit, true)[0]; return h ? h.point.applyMatrix4(inv) : null; };
+    const yAtX = x => { let y = null; for (const z of [0, W * .2, -W * .2]) { const p = cast(x, 500, z, 0, -1); if (p && (y === null || p.y > y)) y = p.y; } return y ?? sil.yAtX(x); };
+    const fx = y => { const p = cast(sil.front + 100, y, 0, -1, 0); return p ? p.x : sil.fx(y); };
+    const under = cast(sil.front - 12, -50, 0, 0, 1), bot = under ? under.y : sil.bot;
+    // Splitter sitzt an der Stossstange, nicht an der weitesten Spitze der Silhouette
+    return {front: fx(bot + 3), back: sil.back, bot, W, yAtX, fx};
+  }
   function fitModel(src, M, col) {
     const I = car3.info, g = car3.g, body = car3.body, m = src.clone(true);
     m.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
@@ -442,6 +492,10 @@ const W3 = (() => {
     [g.position, g.rotation, body.position, body.rotation].forEach((v, i) => v.copy(saved[i]));
     m.userData.shared = true;
     for (const o of body.children) if (o !== fit && o !== car3.cockpit && !car3.flames.includes(o)) o.visible = false;
+    // Im Menü gewählte Aero-Teile (nicht „Ab Werk“) wie beim Silhouetten-Auto anbauen, aber an der vermessenen Kontur des Modells
+    const [P, C, mats, sil] = car3.aeroArgs;
+    for (const k in car3.aero) { const a = car3.aero[k]; for (const o of a.children.slice()) { a.remove(o); o.traverse(x => x.geometry && x.geometry.dispose()); } a.visible = !!S.cfg[k] && S.cfg[k] !== 'auto'; }
+    if (Object.values(car3.aero).some(a => a.visible)) buildAero(car3.aero, P, C, measure(fit, sil, sz.z * s / SC), mats);
     if (M.eye) car3.eye.set(M.eye[0] / SC, M.eye[1] / SC, M.eye[2] / SC);
     car3.model = fit;
     applyCam();
