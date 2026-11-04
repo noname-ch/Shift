@@ -1,5 +1,6 @@
 // 3D-Rennstrecke (Three.js): Rundkurs mit Leitplanken, Bäumen und Tribüne. Das Auto wird aus der Seitensilhouette (CARS[].path) extrudiert.
-// Die Längsdynamik kommt weiter aus physStep (S.v); hier nur Lenkung, Position, Grip-Grenze, Leitplanken, Rundenzeit und Kamera.
+// Die Längsdynamik kommt weiter aus physStep (S.v); hier Querdynamik (Einspurmodell mit Radlasten, Reifenkurve und Untergrund pro Rad),
+// Lenkung, Position, Leitplanken, Rundenzeit und Kamera. Die Reifengrenzen gehen über S.trac an physStep zurück (Durchdrehen, ABS).
 'use strict';
 const W3 = (() => {
   const T = typeof THREE !== 'undefined' ? THREE : null;
@@ -9,8 +10,11 @@ const W3 = (() => {
   // Kontrollpunkte des Rundkurses (x, z in m); Start/Ziel bei [0,0] auf der langen Geraden
   const CTRL = [[0,0],[300,0],[500,0],[640,30],[700,130],[660,240],[540,280],[420,260],[320,320],[300,440],[380,540],[520,580],[620,680],[580,800],[420,840],[200,800],[0,700],[-120,560],[-60,420],[-160,300],[-340,280],[-460,180],[-440,60],[-300,0]];
   const CAMS = ['chase', 'cockpit', 'bumper'], CAM_NAMES = {chase:'Verfolger', cockpit:'Cockpit', bumper:'Stossstange'};
-  let R, scene, cam, sun, wrap, N = 0, STEP = 3, PX, PZ, RX, RZ, CURV, started = false;
-  const st = {x:0, z:0, h:0, i:-1, lat:0, off:false, latA:0, acc:0, lastV:0, camH:0, shake:0, steer:0, touch:0, vy:0, r:0, lookY:0, lookP:0, zoom:1, drag:null};
+  let R, scene, cam, sun, wrap, N = 0, STEP = 3, PX, PZ, RX, RZ, CURV, KERB, GRVL, started = false;
+  // Untergründe: 0 Asphalt, 1 Randstein, 2 Wiese, 3 Kies. Rollwiderstand als Anteil der Radlast (Kies bremst stark).
+  const SURF_ROLL = [0, .012, .1, .42], SURF_ROUGH = [0, .5, .6, 1], GRAVEL_IN = HW + 2.3, GRAVEL_OUT = WALL - .8;
+  const st = {x:0, z:0, h:0, i:-1, lat:0, off:false, latA:0, acc:0, lastV:0, camH:0, shake:0, steer:0, touch:0, vy:0, r:0, lookY:0, lookP:0, zoom:1, drag:null,
+              ay:0, fx:0, fyF:0, fyR:0, slideF:0, slideR:0, rough:0, wsurf:[0, 0, 0, 0]};
   const lap = {t:0, run:false, start:0, cp:0, valid:true, last:null, best:null, prev:-1, n:0};
   const car3 = {key:'', g:null, body:null, upper:null, cockpit:null, wheels:[], tail:null, flames:[], eye:new T.Vector3(), bumper:new T.Vector3(), info:null, sw:null, model:null, own:[]};
   let rng = 1;
@@ -107,6 +111,14 @@ const W3 = (() => {
       const a = (i + N - 3) % N, b = (i + 3) % N;
       CURV[i] = Math.atan2(tx[a] * tz[b] - tz[a] * tx[b], tx[a] * tx[b] + tz[a] * tz[b]) / (6 * STEP);
     }
+    // Randsteine in Kurven (beidseitig); Kiesbett aussen an engen Kurven (Radius unter ~92 m), bis etwas nach dem Kurvenausgang.
+    // CURV > 0 = Kurve Richtung +R, aussen ist dann -R. GRVL[i] = Seite des Kiesbetts (+1/-1) oder 0.
+    KERB = new Uint8Array(N); GRVL = new Int8Array(N);
+    for (let i = 0; i < N; i++) {
+      let c = 0; for (let k = -4; k <= 4; k++) c = Math.max(c, Math.abs(CURV[(i + k + N) % N]));
+      KERB[i] = c >= 1 / 260 ? 1 : 0;
+      if (Math.abs(CURV[i]) >= 1 / 92) for (let k = -4; k <= 14; k++) GRVL[(i + k + N) % N] = -Math.sign(CURV[i]);
+    }
     // Strassenband (u quer, v entlang)
     const ribbon = (l0, l1, y0, y1, vScale) => {
       const pos = [], uv = [], idx = [];
@@ -128,8 +140,7 @@ const W3 = (() => {
     // Randsteine rot/weiss in Kurven
     const cp = [], cc = [], red = new T.Color('#c8321a'), white = new T.Color('#eeeeea');
     for (let i = 0; i < N; i++) {
-      let c = 0; for (let k = -4; k <= 4; k++) c = Math.max(c, Math.abs(CURV[(i + k + N) % N]));
-      if (c < 1 / 260) continue;
+      if (!KERB[i]) continue;
       const j = (i + 1) % N, col = (i & 1) ? red : white;
       for (const s of [-1, 1]) {
         const a = HW * s, b = (HW + 1.3) * s, P = (ii, l) => [PX[ii] + RX[ii] * l, .05, PZ[ii] + RZ[ii] * l];
@@ -139,6 +150,19 @@ const W3 = (() => {
     }
     const cg = new T.BufferGeometry(); cg.setAttribute('position', new T.Float32BufferAttribute(cp, 3)); cg.setAttribute('color', new T.Float32BufferAttribute(cc, 3)); cg.computeVertexNormals();
     const curbs = new T.Mesh(cg, new T.MeshStandardMaterial({vertexColors: true, roughness: .7, side: T.DoubleSide})); curbs.receiveShadow = true; scene.add(curbs);
+    // Kiesbetten
+    const gp = [], gu = [], gi = [];
+    for (let i = 0; i < N; i++) {
+      const s = GRVL[i], j = (i + 1) % N;
+      if (!s || GRVL[j] !== s) continue;
+      const q = gp.length / 3;
+      for (const [ii, k] of [[i, i], [j, i + 1]]) for (const l of [GRAVEL_IN * s, GRAVEL_OUT * s]) { gp.push(PX[ii] + RX[ii] * l, .025, PZ[ii] + RZ[ii] * l); gu.push(l / 3, k * STEP / 3); }
+      gi.push(...(s > 0 ? [q, q + 1, q + 2, q + 1, q + 3, q + 2] : [q, q + 2, q + 1, q + 1, q + 2, q + 3]));
+    }
+    const gravelTex = canvasTex(256, 256, (g, w, h) => noise(g, w, h, r => { const k = r > .9 ? 1.3 : r < .14 ? .62 : 1, v = 112 + r * 46; return [v * k | 0, (v - 12) * k | 0, (v - 38) * k | 0]; }), true);
+    const gg = new T.BufferGeometry(); gg.setAttribute('position', new T.Float32BufferAttribute(gp, 3)); gg.setAttribute('uv', new T.Float32BufferAttribute(gu, 2)); gg.setIndex(gi); gg.computeVertexNormals();
+    const gravel = new T.Mesh(gg, new T.MeshStandardMaterial({map: gravelTex, roughness: 1, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1}));
+    gravel.receiveShadow = true; scene.add(gravel);
     // Leitplanken
     const rail = new T.MeshStandardMaterial({color: '#b9c0c8', metalness: .6, roughness: .35, side: T.DoubleSide});
     for (const s of [-1, 1]) {
@@ -560,7 +584,13 @@ const W3 = (() => {
     if (S.running && D.turbo >= 1) em(12 * (.3 + S.thrEff), ex, -ey, '#bfcbe0', .7);
     if (S.temp > 112) em((S.temp - 112) * 3, C.hood[0], -C.hood[1] + 6, '#eef1f3', 2.2);
     if (S.blown) em(4 + 30 * S.blowT / 5, C.hood[0], -C.hood[1] + 6, '#28282a', 1.8);
-    if (st.slide > 3 && Math.abs(S.v) > 8) for (const w of car3.wheels) if (!w.front) em(st.slide * 1.5, w.piv.position.x / SC, 4, '#d9dadb', .5);
+    // Reifenrauch pro Achse (Rutschen, Durchdrehen), Staub von Rädern auf Wiese/Kies
+    const fast = Math.abs(S.v) > 6 || S.spin;
+    for (const w of car3.wheels) {
+      const k = (w.front ? 0 : 2) + (w.piv.position.z > 0 ? 1 : 0), sf = st.wsurf[k], sl = w.front ? st.slideF : st.slideR;
+      if (sf < 2 && sl > 2.5 && fast) em(sl * 1.5, w.piv.position.x / SC, 4, '#d9dadb', .5);
+      if (sf >= 2 && (Math.abs(S.v) > 4 || S.spin)) em((sf === 3 ? 18 : 5) * Math.min(1, (Math.abs(S.v) + Math.abs(S.ws)) / 25) + (sl > 2 ? 6 : 0), w.piv.position.x / SC, 3, sf === 3 ? '#b8a27e' : '#8a7a58', .9);
+    }
     for (let i = smoke.length - 1; i >= 0; i--) {
       const q = smoke[i]; q.life -= dt;
       if (q.life <= 0) { scene.remove(q.m); q.m.material.dispose(); smoke.splice(i, 1); continue; }
@@ -582,42 +612,117 @@ const W3 = (() => {
   }
   function reset() {
     if (!started) return;
-    placeAt(nearest(st.x, st.z, st.i)); S.v = 0; st.steer = 0; lap.valid = false; lap.prev = st.i;
+    placeAt(nearest(st.x, st.z, st.i)); S.v = 0; S.ws = 0; S.spin = false; st.steer = 0; lap.valid = false; lap.prev = st.i;
     toast('Zurück auf die Strecke');
   }
 
   // ---------------- Fahren ----------------
+  // Haftgrenze eines Rads (N): Reifen × Untergrund × Radlast, mit Lastempfindlichkeit (doppelte Last ≠ doppelter Grip,
+  // deshalb kostet Gewichtsverlagerung in der Summe Grip und schwere Autos haben pro kg etwas weniger)
+  const FZ0 = 3500, wheelCap = (mu, fz) => mu * fz * clamp(1 - .16 * (fz / FZ0 - 1), .7, 1.2);
   function drive(dt) {
-    const C = car(), I = car3.info, kb = S.kbd;
+    const C = car(), I = car3.info, kb = S.kbd, CH = chassis(), TY = tyre(), A = aero();
     const target = clamp((kb.left ? 1 : 0) - (kb.right ? 1 : 0) + st.touch, -1, 1);
-    st.steer = approach(st.steer, target, dt * (target === 0 ? 4.5 : Math.sign(target) !== Math.sign(st.steer) ? 6 : 2.6));
-    const v = S.v, L = I.base, TY = tyre(), A = aero();
-    // Grip pro Achse (pro kg): Reifen × (halbes Gewicht + Abtrieb ½ρv²·cl). Ground-Effect braucht ebenen Boden – auf der Wiese fast weg.
-    const mu = TY.mu * (st.off ? TY.grass : 1), q = .6 * v * v / C.mass, fl = st.off ? (A.ge ? .15 : .5) : 1;
-    const aF = mu * (GRAV / 2 + q * (A.clF + A.floorF * fl)), aR = mu * (GRAV / 2 + q * (A.clR + A.floorR * fl)) * 1.2;   // hinten etwas mehr Grip: stabil, leicht untersteuernd
-    const aMax = 2 * aF, kF = TY.k, kR = TY.k * 1.33;
-    // Lenkeinschlag bei Tempo nur so weit, dass die Vorderreifen knapp über der Haftgrenze arbeiten
-    const delta = st.steer * Math.min(.55 / (1 + Math.abs(v) / 16), L * aMax / Math.max(v * v, 1) + .12);
-    // Einspurmodell: Schräglaufwinkel vorne/hinten, Seitenkraft sättigt bei der Haftgrenze, Gierträgheit.
-    // st.vy = Quergeschwindigkeit (nach links), st.r = Gierrate. Zu schnell → Reifen gesättigt, das Auto trägt seinen Schwung.
-    if (v < 2) { st.r = v * Math.tan(delta) / L; st.vy = approach(st.vy, 0, (aF + aR) * dt); }
-    else {
-      const n = 8, d = dt / n, cd = Math.cos(delta), sd = Math.sin(delta);
+    // bei hohem Tempo lenkt die Tastatur langsamer ein (sonst schaukelt A/D-Tippen das Auto auf)
+    const sr = 1 / (1 + Math.abs(S.v) / 40);
+    st.steer = approach(st.steer, target, dt * (target === 0 ? 4.5 : Math.sign(target) !== Math.sign(st.steer) ? 6 * sr : 2.6 * sr));
+    const v = S.v, m = C.mass, L = I.base, a = L * (1 - CH.wd), b = L * CH.wd, Iz = m * a * b * CH.yi, tw = I.W * .86;
+    const fs = CH.dr === 'fwd' ? 1 : CH.dr === 'rwd' ? 0 : CH.fs;
+    // ---- Untergrund unter jedem Rad (FL, FR, RL, RR; Seite +1 = links) ----
+    const i0 = Math.max(0, st.i), c0 = Math.cos(st.h), s0 = Math.sin(st.h);
+    const fR = c0 * RX[i0] - s0 * RZ[i0], lR = -s0 * RX[i0] - c0 * RZ[i0];   // Längs-/Querachse des Autos auf die Streckenquerachse projiziert
+    const loose = CH.loose || 1, SMU = [1, .88, Math.min(.92, TY.grass * loose), Math.min(.85, TY.gravel * loose)];
+    const WX = [a, a, -b, -b], WY = [tw / 2, -tw / 2, tw / 2, -tw / 2];
+    let nOff = 0, nGr = 0, rough = 0;
+    for (let k = 0; k < 4; k++) {
+      const l = st.lat + WX[k] * fR + WY[k] * lR, al = Math.abs(l);
+      const sf = al <= HW ? 0 : al <= HW + 1.3 && KERB[i0] ? 1 : GRVL[i0] === Math.sign(l) && al >= GRAVEL_IN && al <= GRAVEL_OUT + 1 ? 3 : 2;
+      st.wsurf[k] = sf; if (sf >= 2) nOff++; if (sf === 3) nGr++; rough += SURF_ROUGH[sf] / 4;
+    }
+    st.rough = rough;
+    // ---- Radlasten: Gewichtsverteilung + Abtrieb, Nicken beim Bremsen/Gas, Wanken in der Kurve ----
+    // Ground-Effect braucht ebenen Boden: je mehr Räder auf Wiese/Kies, desto weniger Unterboden-Abtrieb
+    const q = .6 * v * v, fl = 1 - nOff / 4 * (A.ge ? .85 : .5);
+    const ax = clamp(st.acc, -16, 16), ay = clamp(st.ay, -30, 30), pitch = m * ax * CH.cg / L, roll = m * ay * CH.cg / tw;
+    const FzF = Math.max(m * GRAV * .08, m * GRAV * CH.wd + q * (A.clF + A.floorF * fl) - pitch);
+    const FzR = Math.max(m * GRAV * .08, m * GRAV * (1 - CH.wd) + q * (A.clR + A.floorR * fl) + pitch);
+    // Kurve nach links (ay > 0): Last wandert auf die rechten Räder; rs = Anteil, den die Vorderachse davon trägt
+    const Fz = [FzF / 2 - roll * CH.rs, FzF / 2 + roll * CH.rs, FzR / 2 - roll * (1 - CH.rs), FzR / 2 + roll * (1 - CH.rs)].map(f => Math.max(0, f));
+    const cap = Fz.map((f, k) => wheelCap(TY.mu * SMU[st.wsurf[k]], f) * (k > 1 ? CH.rb : 1));
+    const DF = Math.max(1, cap[0] + cap[1]), DR = Math.max(1, cap[2] + cap[3]);
+    // Rollwiderstand pro Rad (Wiese, Kies): bremst und zieht das Auto zur Seite mit mehr Widerstand
+    let drag = 0, mzDrag = 0;
+    for (let k = 0; k < 4; k++) { const f = Fz[k] * SURF_ROLL[st.wsurf[k]]; drag += f; mzDrag += WY[k] * f; }
+    mzDrag *= Math.sign(v) * Math.min(1, Math.abs(v) / 3);
+    S.extraF = drag;
+    // ESP Sport: dreht das Auto weiter in den Rutsch (Schwimmwinkel über ~7°), bremst es einzelne Räder (Giermoment gegen den Dreher)
+    const esp = S.cfg.aids === 'esp', espMax = .45 * (DF + DR) * tw / 2;
+    let espNow = 0;
+    // ---- Längskräfte pro Achse (aus physStep): Antrieb je nach Antriebsart, Bremse etwa nach Achslast ----
+    st.fx += (S.Fx - st.fx) * Math.min(1, dt * 25);
+    const bf = clamp(DF / (DF + DR) + .04, .3, .8), sv = Math.sign(v) || 1;
+    const FxF = st.fx * fs - S.Fb * bf * sv, FxR = st.fx * (1 - fs) - S.Fb * (1 - bf) * sv;
+    // Reibkreis: was längs gebraucht wird, fehlt quer. Durchdrehende Räder haben kaum noch Seitenhalt (Heck kommt, Front schiebt).
+    const circ = (fx, D) => D * Math.max(.2, Math.sqrt(Math.max(0, 1 - (fx / D) ** 2)));
+    // Durchdrehen: je mehr Schlupf, desto weniger Seitenhalt. Blockierte Räder (ohne ABS): vorne kaum Lenkung, hinten wenig Halt.
+    const spinK = S.spin ? 1 - .8 * Math.min(1, slipRatio() / .35) : 1;
+    let cF = circ(FxF, DF), cR = circ(FxR, DR);
+    if (S.spin) { if (fs > 0) cF = Math.min(cF, DF * spinK); if (fs < 1) cR = Math.min(cR, DR * spinK); }
+    if (S.lock) { cF = Math.min(cF, DF * .15); cR = Math.min(cR, DR * .35); }
+    // Reifenkurve (vereinfachter Pacejka): Seitenkraft steigt bis zum Schräglaufwinkel ap, danach fällt sie auf sr ab
+    const Cc = (Math.PI - Math.asin(TY.sr)) / (Math.PI / 2), Bf = Math.tan(Math.PI / (2 * Cc)) / TY.ap, Br = Bf * 1.15;   // hinten etwas steifer: stabil
+    const pj = (al, B) => Math.sin(Cc * Math.atan(B * al));
+    const lockN = .55 / (1 + Math.abs(v) / 16), ac = TY.ap * 1.1;
+    let delta = st.steer * lockN, alF = 0, alR = 0;
+    if (v < 2 && v > -8 && Math.abs(st.vy) < 1.5) {
+      // Schritttempo und Rückwärtsfahren: Räder rollen einfach in Lenkrichtung
+      st.r = v * Math.tan(delta) / L; st.vy = approach(st.vy, 0, (DF + DR) / m * dt);
+      st.fyF = st.fyF * .9; st.fyR = st.fyR * .9;
+    } else {
+      // Einspurmodell mit Schwerpunkt zwischen den Achsen (a vorne, b hinten), Gierträgheit Iz.
+      // st.vy = Quergeschwindigkeit (nach links), st.r = Gierrate (links +).
+      const n = Math.max(8, Math.ceil(dt / .002)), d = dt / n;
       let vx = v;
       for (let k = 0; k < n; k++) {
-        const af = Math.atan2(st.vy + L / 2 * st.r, vx) - delta, ar = Math.atan2(st.vy - L / 2 * st.r, vx);
-        const Ff = -aF * Math.tanh(kF * af), Fr = -aR * Math.tanh(kR * ar);
-        st.vy += d * (Ff * cd + Fr - vx * st.r);
-        st.r += d * (Ff * cd - Fr) * 2 / L;
-        vx += d * (st.vy * st.r - Ff * sd);
+        if (vx > 1) {
+          // Lenkung: höchstens so weit, dass die Vorderreifen knapp über ihrem Grip-Optimum arbeiten (kein Schieben bei Vollausschlag).
+          // Gegenlenken in einen Rutscher darf weiter gehen (bis 0.6 rad); losgelassen dreht der Nachlauf die Räder in den Rutsch.
+          const thf = Math.atan2(st.vy + a * st.r, vx), beta = Math.atan2(st.vy, vx);
+          const hi = Math.max(0, Math.min(thf + ac, beta > .03 ? .6 : lockN)), lo = Math.min(0, Math.max(thf - ac, beta < -.03 ? -.6 : -lockN));
+          const sa = clamp(Math.sign(thf) * Math.max(0, Math.abs(thf) - ac) * .7, -.45, .45);
+          delta = (st.steer > 0 ? st.steer * hi : -st.steer * lo) + (1 - Math.abs(st.steer)) * sa;
+        }
+        const cd = Math.cos(delta), sd = Math.sin(delta), vfy = st.vy + a * st.r, vry = st.vy - b * st.r;
+        alF = Math.atan2(vfy * cd - vx * sd, Math.abs(vx * cd + vfy * sd)); alR = Math.atan2(vry, Math.abs(vx));
+        const Ff = -cF * pj(alF, Bf), Fr = -cR * pj(alR, Br);
+        let mzEsp = 0;
+        if (esp && vx > 5) {
+          // a) Schwimmwinkel über ~7° und das Auto dreht weiter hinein; b) Gierrate höher, als der Grip bei diesem Tempo je trägt
+          const be = Math.atan2(st.vy, vx), ex = Math.abs(be) - .12, rLim = (DF + DR) / m / vx * 1.2, er = (Math.abs(st.r) - rLim) / (.6 * rLim);
+          const kb = ex > 0 && be * st.r < 0 ? Math.min(1, ex / .1) : 0, kr = er > 0 ? Math.min(1, er) : 0;
+          if (kb >= kr && kb > 0) mzEsp = Math.sign(be) * kb * espMax; else if (kr > 0) mzEsp = -Math.sign(st.r) * kr * espMax;
+          espNow = Math.max(espNow, kb, kr);
+        }
+        st.vy += d * ((Ff * cd + Fr) / m - vx * st.r);
+        st.r += d * (a * Ff * cd - b * Fr + mzDrag + mzEsp) / Iz;
+        vx += d * (st.vy * st.r - Ff * sd / m);
+        st.fyF = Ff; st.fyR = Fr;
       }
       S.v = vx;
     }
+    st.ay += ((st.fyF * Math.cos(delta) + st.fyR) / m - st.ay) * Math.min(1, dt * 7);
+    S.esp = espNow; S.extraF += espNow * .25 * (DF + DR);   // ESP-Bremseingriff kostet Tempo
+    // ---- Grenzen zurück an physStep: Traktion der angetriebenen Achse(n) nach dem, was quer schon gebraucht wird; ABS-Grenze ----
+    const lon = (fy, D) => D * Math.max(.35, Math.sqrt(Math.max(0, 1 - (fy / D) ** 2)));
+    const tF = lon(st.fyF, DF), tR = lon(st.fyR, DR);
+    S.trac = {d: fs >= 1 ? tF : fs <= 0 ? tR : tF + tR, b: .9 * (DF + DR)};
     st.h += st.r * dt;
     const ch = Math.cos(st.h), sh = Math.sin(st.h);
-    st.slide = Math.abs(st.vy) * 2;
-    S.extraF = C.mass * (st.off ? 1.2 : 0);
-    S.fx.slide = st.slide; S.fx.off = st.off ? 1 : 0;
+    // Rutschen (für Quietschen und Rauch): über dem Grip-Optimum, durchdrehende Räder, ABS-Regelung
+    const over = (al, ap) => Math.max(0, Math.abs(al) / ap - .85) * 6, ws = S.spin ? Math.min(8, Math.abs(S.ws) * 1.5) : 0, abs = S.lock ? 6 : S.Fb > S.trac.b * .97 ? 1.5 : 0;
+    st.slideF = over(alF, TY.ap) + (fs > 0 ? ws : 0) + abs; st.slideR = over(alR, TY.ap / 1.15) + (fs < 1 ? ws : 0) + abs;
+    st.slide = Math.max(st.slideF, st.slideR);
+    S.fx.slide = st.slide; S.fx.off = nOff / 4; S.fx.gravel = nGr / 4;
     st.x += (ch * S.v - sh * st.vy) * dt; st.z -= (sh * S.v + ch * st.vy) * dt;
     st.i = nearest(st.x, st.z, st.i);
     let i = st.i;
@@ -641,15 +746,15 @@ const W3 = (() => {
     }
     S.fx.wall = Math.abs(st.lat) > lim - .25 && Math.abs(S.v) > 2 ? 1 : 0;   // an der Planke entlang: Schleifgeräusch
     // Karosserie: Wanken in Kurven, Nicken beim Bremsen/Beschleunigen
-    st.latA += (S.v * st.r - st.latA) * Math.min(1, dt * 6);
     st.acc += ((S.v - st.lastV) / Math.max(dt, 1e-3) - st.acc) * Math.min(1, dt * 5); st.lastV = S.v;
     const soft = A.clR + A.clF + A.floorF + A.floorR > 1.5 ? .0028 : .006;
     car3.g.position.set(st.x, 0, st.z); car3.g.rotation.y = st.h;
-    const bump = st.off ? (Math.random() - .5) * .012 * Math.min(1, Math.abs(v) / 8) : 0;
+    const bump = st.rough ? (Math.random() - .5) * .016 * st.rough * Math.min(1, Math.abs(v) / 8) : 0;   // Randsteine, Wiese, Kies rütteln
     const vib = S.running ? (Math.random() - .5) * .0012 * (.4 + S.thrEff + S.dmg.engine * 2) : 0;
-    car3.body.rotation.set(clamp(st.latA * soft, -.07, .07) + bump, 0, clamp(st.acc * soft * .55, -.05, .05) + bump * .5);
+    car3.body.rotation.set(clamp(st.ay * soft * chassis().cg * 2, -.08, .08) + bump, 0, clamp(st.acc * soft * .55, -.05, .05) + bump * .5);
     car3.body.position.y = vib + Math.abs(bump) * 2;
-    for (const w of car3.wheels) { w.spin.rotation.z = -S.dist / I.r; if (w.front) w.piv.rotation.y = delta; }
+    // angetriebene Räder drehen beim Durchdrehen schneller als das Auto fährt
+    for (const w of car3.wheels) { w.spin.rotation.z = -((w.front ? fs > 0 : fs < 1) ? S.wdist : S.dist) / I.r; if (w.front) w.piv.rotation.y = delta; }
     if (car3.sw) car3.sw.rotation.z = -delta * 9;
     car3.tail.emissiveIntensity = S.brake > .1 ? 4 : .5;
     for (const f of car3.flames) { f.visible = S.flame > .03; if (f.visible) { f.scale.set(S.flame * (.5 + Math.random() * .8), .7 + Math.random() * .5, 1); f.material.opacity = Math.min(1, S.flame * 1.2); } }
@@ -724,6 +829,13 @@ const W3 = (() => {
     hudT -= dt;
     const E = eng(), rpm = S.we * RPM, lit = clamp(Math.round((rpm - (E.red - 2200)) / 2200 * 10), 0, 10), flash = rpm > E.red - 150 && (performance.now() / 70 | 0) & 1;
     hud.leds.forEach((l, k) => { l.className = flash ? 'on blink' : k < lit ? 'on' : ''; });
+    // Kontrollleuchten der Fahrhilfen: leuchten kurz nach jedem Eingriff nach, ausgeschaltete Hilfen verschwinden
+    const ai = S.cfg.aids, act = {abs: S.brake > .1 && Math.abs(S.v) > 2 && S.trac && S.Fb >= S.trac.b * .97, tk: S.tcAct > .02 || (S.spin && hasTC()), esp: S.esp > .05};
+    for (const k in hud.aid) {
+      const L = hud.aid[k], avail = k === 'abs' ? ai !== 'aus' : k === 'tk' ? hasTC() : ai === 'esp';
+      L.t = act[k] && avail ? .3 : Math.max(0, L.t - dt);
+      L.el.hidden = !avail; L.el.classList.toggle('on', L.t > 0);
+    }
     if (hudT > 0) return;
     hudT = .08;
     hud.spd.textContent = Math.round(Math.abs(S.v) * 3.6);
@@ -751,6 +863,7 @@ const W3 = (() => {
     new ResizeObserver(fit).observe(cv); fit();
     hud.spd = el.querySelector('[data-h=spd]'); hud.gear = el.querySelector('[data-h=gear]'); hud.lap = el.querySelector('[data-h=lap]');
     hud.last = el.querySelector('[data-h=last]'); hud.best = el.querySelector('[data-h=best]'); hud.off = el.querySelector('[data-h=off]');
+    hud.aid = {}; el.querySelectorAll('[data-h=aids] i').forEach(i => { hud.aid[i.dataset.a] = {el: i, t: 0}; });
     const leds = el.querySelector('.leds'); hud.leds = [];
     for (let k = 0; k < 10; k++) { const s = document.createElement('i'); s.style.setProperty('--c', k < 4 ? '#22c55e' : k < 7 ? '#f5a524' : '#e5484d'); leds.appendChild(s); hud.leds.push(s); }
     el.querySelectorAll('[data-steer]').forEach(b => {

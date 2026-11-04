@@ -38,6 +38,10 @@ canvas{display:block;width:100%}
 .hud .leds i{width:13px;height:13px;border-radius:50%;background:#222;box-shadow:inset 0 0 0 1px #000}
 .hud .leds i.on{background:var(--c);box-shadow:0 0 8px var(--c)}
 .hud .leds i.blink{--c:#5ab0ff}
+.hud .aids{position:absolute;top:84px;right:12px;display:flex;gap:5px}
+.hud .aids i{font:700 12px/1 var(--display);font-style:normal;padding:3px 6px;border-radius:4px;background:#0009;color:#fff6;letter-spacing:.05em}
+.hud .aids i.on{background:#f5a524;color:#14171a;box-shadow:0 0 8px #f5a524}
+.hud .aids i[hidden]{display:none}
 .hud .off{position:absolute;top:66px;left:50%;transform:translateX(-50%);background:#e5484dcc;color:#fff;padding:4px 12px;border-radius:6px;font-weight:700;letter-spacing:.05em}
 .hud .hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#fffc;font:500 13px Barlow,sans-serif;background:#0008;padding:4px 10px;border-radius:6px;white-space:nowrap}
 .hud .tools{position:absolute;bottom:10px;right:10px;display:flex;gap:6px;pointer-events:auto}
@@ -112,6 +116,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div class="lapbox"><b data-h="lap">Über die Startlinie fahren</b><span>Letzte <span data-h="last">–</span> · Beste <span data-h="best">–</span></span></div>
         <div class="leds"></div>
         <div class="spdbox"><b data-h="spd">0</b><em data-h="gear">N</em><small>km/h · Gang</small></div>
+        <div class="aids" data-h="aids" title="Leuchtet, wenn die Fahrhilfe eingreift"><i data-a="abs">ABS</i><i data-a="tk">TK</i><i data-a="esp">ESP</i></div>
         <div class="off" data-h="off" hidden>NEBEN DER STRECKE</div>
         <div class="hint">A / D lenken · Maus ziehen: umschauen · Rad: Zoom · C Kamera · X zurück auf die Strecke · F Vollbild</div>
         <button class="steer" data-steer="1" aria-label="Links lenken">◀</button>
@@ -175,6 +180,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="field"><label for="wing">Heck</label><select id="wing"></select></div>
     <div class="field"><label for="splitter">Front</label><select id="splitter"></select></div>
     <div class="field"><label for="floor">Unterboden</label><select id="floor"></select></div>
+    <div class="field"><label for="aids">Fahrhilfen</label><select id="aids"></select></div>
     <p id="aeroInfo" class="help" style="margin:6px 0"></p>
 
     <h2>Vorlagen</h2>
@@ -229,13 +235,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div id="toast"></div>
 
 <!-- ?v= bei jeder Änderung an einer .js-Datei hochzählen, sonst mischt der Browser alte und neue Dateien aus dem Cache -->
-<script src="assets.js?v=2026-11-04g"></script>
-<script src="illus.js?v=2026-11-04g"></script>
-<script src="three.min.js?v=2026-11-04g"></script>
-<script src="GLTFLoader.js?v=2026-11-04g"></script>
-<script src="models.js?v=2026-11-04g"></script>
-<script src="elsounds.js?v=2026-11-04g"></script>
-<script src="world3d.js?v=2026-11-04g"></script>
+<script src="assets.js?v=2026-11-04h"></script>
+<script src="illus.js?v=2026-11-04h"></script>
+<script src="three.min.js?v=2026-11-04h"></script>
+<script src="GLTFLoader.js?v=2026-11-04h"></script>
+<script src="models.js?v=2026-11-04h"></script>
+<script src="elsounds.js?v=2026-11-04h"></script>
+<script src="world3d.js?v=2026-11-04h"></script>
 <script>
 // Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
 window.sampleRate = 48000;
@@ -838,6 +844,10 @@ const approach = (v, t, step) => v < t ? Math.min(t, v + step) : Math.max(t, v -
 // ---------------- Fahrzeug-Konstanten ----------------
 let WR = 0.32;   // Radradius in m (aus dem Radumfang im Customizer)
 const MASS = 1400, DRAG = 0.42, ROLL = 180, BRAKE = 13000, REV = 3.4;
+const WHEEL_M = 30;
+// Schlupf der Antriebsräder (0 = haften, 1 = drehen im Stand) und was der Reifen dabei noch längs überträgt: leichtes Durchdrehen fast volle Kraft, viel Schlupf ~80 %
+const slipRatio = () => Math.abs(S.ws) / Math.max(3, Math.abs(S.v) + Math.abs(S.ws));
+const spinGrip = () => 1 - .2 * Math.min(1, slipRatio() / .5);   // Trägheit der Antriebsräder samt Achsen, auf den Reifenumfang umgerechnet (kg) – bestimmt, wie schnell sie durchdrehen
 
 // ---------------- Teile ----------------
 const ENGINES = {
@@ -922,12 +932,14 @@ const KNOBS = {
 // Reifen: mu = Haftbeiwert, k = Seitensteifigkeit (wie spitz die Haftung kommt), grass = Haftung auf Wiese relativ zur Strasse
 const TYRES = {
   auto:  {name:'Ab Werk (passend zum Auto)'},
-  eco:   {name:'Spar-Reifen (Eco)', mu:.85, k:10, grass:.75, w:.22},
-  serie: {name:'Serienreifen (Allround)', mu:1, k:12, grass:.72, w:.26},
-  sport: {name:'Sportreifen (UHP)', mu:1.12, k:13, grass:.68, w:.28},
-  semi:  {name:'Semi-Slick (Cup)', mu:1.26, k:15, grass:.6, w:.3},
-  slick: {name:'Rennslick', mu:1.45, k:18, grass:.5, w:.32},
+  eco:   {name:'Spar-Reifen (Eco)', mu:.85, k:10, grass:.75, gravel:.56, ap:.15, sr:.84, w:.22},
+  serie: {name:'Serienreifen (Allround)', mu:1, k:12, grass:.72, gravel:.52, ap:.13, sr:.8, w:.26},
+  sport: {name:'Sportreifen (UHP)', mu:1.12, k:13, grass:.68, gravel:.48, ap:.115, sr:.78, w:.28},
+  semi:  {name:'Semi-Slick (Cup)', mu:1.26, k:15, grass:.6, gravel:.42, ap:.1, sr:.75, w:.3},
+  slick: {name:'Rennslick', mu:1.45, k:18, grass:.5, gravel:.36, ap:.09, sr:.72, w:.32},
 };
+// mu = Haftbeiwert auf Asphalt, grass/gravel = Anteil davon auf Wiese/Kies, ap = Schräglaufwinkel (rad) mit maximaler Seitenkraft,
+// sr = Anteil der Seitenkraft, der beim Rutschen weit über ap noch bleibt (Haftung > Gleiten: Slicks reissen spitzer ab)
 // Aero: cl = Abtriebsbeiwert × Fläche (m²), cd = zusätzlicher Luftwiderstand; f = Anteil des Unterboden-Abtriebs vorne
 const WINGS = {
   auto: {name:'Ab Werk'},
@@ -1035,9 +1047,48 @@ const CARS = {
            win:'M-88 -66 Q-66 -82 -24 -82 Q6 -82 28 -64 Z', pillar:[-26, -82, -26, -66],
            livery:{slash:[[-24,10,'#f2f0ea',18],[-12,10,'#c8321a',18]], bands:[[-24,3,'#f2f0ea']], num:'64', numAt:[20,-44]}},
 };
+// Fahrwerk pro Auto: dr = Antrieb (fwd/rwd/awd, fs = Momentanteil vorne bei Allrad), wd = Gewichtsanteil vorne, cg = Schwerpunkthöhe (m),
+// yi = Gierträgheit relativ zu m·a·b (Mittelmotor < 1 = dreht schneller ein), rs = Anteil der Querlastverschiebung vorne (Stabis/Federn:
+// höher = untersteuert am Limit mehr), rb = Grip hinten durch Abstimmung (breitere Hinterreifen, Spur, Stabis: > 1 = stabiler,
+// der 911 braucht wegen des Heckmotors besonders breite Hinterreifen), loose = Bonus auf Wiese und Kies (Rallye-Fahrwerk)
+const CHASSIS = {
+  hatch:   {dr:'fwd', wd:.61, cg:.52, yi:1,    rs:.62, rb:1.1},
+  coupe:   {dr:'rwd', wd:.53, cg:.48, yi:1,    rs:.55, rb:1.05},
+  muscle:  {dr:'rwd', wd:.56, cg:.53, yi:1.08, rs:.6, rb:1.03},
+  super:   {dr:'rwd', wd:.42, cg:.42, yi:.86,  rs:.45, rb:1.07},
+  kombi:   {dr:'awd', fs:.4, wd:.57, cg:.55, yi:1.1, rs:.6, rb:1.08},
+  pickup:  {dr:'rwd', wd:.58, cg:.72, yi:1.15, rs:.58, rb:1.04},
+  supra:   {dr:'rwd', wd:.53, cg:.47, yi:1,    rs:.55, rb:1.05},
+  rally:   {dr:'awd', fs:.5, wd:.6,  cg:.5,  yi:.95, rs:.55, loose:1.3, rb:1.06},
+  twingo:  {dr:'fwd', wd:.62, cg:.55, yi:1,    rs:.66, rb:1.12},
+  r8lms:   {dr:'rwd', wd:.42, cg:.38, yi:.88,  rs:.5, rb:1.07},
+  huracan: {dr:'rwd', wd:.43, cg:.38, yi:.88,  rs:.5, rb:1.07},
+  f296:    {dr:'rwd', wd:.43, cg:.38, yi:.88,  rs:.5, rb:1.07},
+  gt3r:    {dr:'rwd', wd:.39, cg:.38, yi:.94,  rs:.52, rb:1.14},   // Heckmotor: viel Traktion, aber leichte Front und empfindlich auf Lastwechsel
+  rsr:     {dr:'rwd', wd:.44, cg:.37, yi:.88,  rs:.5, rb:1.08},    // RSR-19: Mittelmotor
+  amg:     {dr:'rwd', wd:.48, cg:.4,  yi:1,    rs:.52, rb:1.06},
+  m4gt3:   {dr:'rwd', wd:.5,  cg:.42, yi:1.02, rs:.53, rb:1.06},
+  m3comp:  {dr:'rwd', wd:.53, cg:.5,  yi:1.02, rs:.58, rb:1.05},
+  vantage: {dr:'rwd', wd:.49, cg:.4,  yi:1,    rs:.52, rb:1.06},
+  rcf:     {dr:'rwd', wd:.52, cg:.42, yi:1.02, rs:.54, rb:1.06},
+  bentley: {dr:'rwd', wd:.55, cg:.44, yi:1.06, rs:.57, rb:1.06},
+  mcl720:  {dr:'rwd', wd:.42, cg:.38, yi:.86,  rs:.5, rb:1.07},
+  nsx:     {dr:'rwd', wd:.43, cg:.38, yi:.88,  rs:.5, rb:1.07},
+  mustang: {dr:'rwd', wd:.51, cg:.42, yi:1.02, rs:.54, rb:1.05},
+};
+const DRIVE_NAMES = {fwd:'Frontantrieb', rwd:'Heckantrieb', awd:'Allrad'};
+// Fahrhilfen auf der 3D-Strecke: Traktionskontrolle nimmt Motormoment weg, bevor die Antriebsräder durchdrehen; ABS hält die Bremse knapp unter der Blockiergrenze
+// ESP Sport erlaubt kleine Rutscher und fängt erst ab ~7° Schwimmwinkel ab (bremst einzelne Räder, nimmt Gas weg).
+const AIDS = {
+  esp: {name:'ESP Sport + Traktionskontrolle + ABS'},
+  tk:  {name:'Traktionskontrolle + ABS (Heck kommt bei Lastwechsel)'},
+  abs: {name:'Nur ABS (Gas selbst dosieren, Heck kommt)'},
+  aus: {name:'Keine (Räder drehen durch und blockieren)'},
+};
+const hasTC = () => S.cfg.aids === 'esp' || S.cfg.aids === 'tk';
 const COLORS = [['#c8321a','Rot'], ['#f5a524','Gelb'], ['#1f6fd1','Blau'], ['#2f7d4a','Grün'], ['#e9e6df','Weiss'], ['#26292d','Schwarz'], ['#9aa3ad','Silber'], ['#6b3fa0','Violett']];
-const SELECTS = {car:CARS, engine:ENGINES, exhaust:EXHAUSTS, intake:INTAKES, turbo:TURBOS, bov:BOVS, gearbox:GEARBOXES, lever:LEVERS, knob:KNOBS, tyre:TYRES, wing:WINGS, splitter:SPLITTERS, floor:FLOORS};
-const AERO_KEYS = ['tyre', 'wing', 'splitter', 'floor'];
+const SELECTS = {car:CARS, engine:ENGINES, exhaust:EXHAUSTS, intake:INTAKES, turbo:TURBOS, bov:BOVS, gearbox:GEARBOXES, lever:LEVERS, knob:KNOBS, tyre:TYRES, wing:WINGS, splitter:SPLITTERS, floor:FLOORS, aids:AIDS};
+const AERO_KEYS = ['tyre', 'wing', 'splitter', 'floor', 'aids'];
 
 const PRESETS = [
   ['Renault Twingo',  {car:'twingo', color:'#f5a524', engine:'r3', exhaust:'serie', intake:'serie', turbo:'none', gearbox:'h5', lever:'serie', knob:'leder'}],
@@ -1071,12 +1122,12 @@ const PRESETS = [
 // ---------------- Zustand ----------------
 const S = {
   cfg: {car:'hatch', color:'#c8321a', engine:'r4', exhaust:'sport', intake:'sport', turbo:'klein', bov:'pssh', boostMax:1.1, gearbox:'h6', lever:'short', knob:'rot',
-        pops:1, view:'aussen', look:'grafik', scene3d:'3d', cam:'chase', freeCam:'spring', tyre:'auto', wing:'auto', splitter:'auto', floor:'auto', src:'synth', dashStyle:'gt3', shiftMode:'manuell', wheelCirc:2.01, custom:null, vol:.8, mixEx:1, mixIn:1, mixTu:1, mixMech:1, mixRoad:1, mixShift:1, mixGear:.6, mixBang:1.5},
+        pops:1, view:'aussen', look:'grafik', scene3d:'3d', cam:'chase', freeCam:'spring', tyre:'auto', wing:'auto', splitter:'auto', floor:'auto', aids:'esp', src:'synth', dashStyle:'gt3', shiftMode:'manuell', wheelCirc:2.01, custom:null, vol:.8, mixEx:1, mixIn:1, mixTu:1, mixMech:1, mixRoad:1, mixShift:1, mixGear:.6, mixBang:1.5},
   we:0, v:0, dist:0, gear:0, shift:null,
   throttle:0, brake:0, clutch:0, clutchEng:0, thrEff:0, map:0, fuelCut:false, Tc:0,
   dmg:{engine:0, clutch:0, gear:0, turbo:0}, temp:70, blown:false, knock:0, slipN:0, smoke:[], blowT:0, warn:{}, revWarnT:0,
   running:false, starting:0, grace:0, flare:0, cut:false, boost:0, bovArmed:false, flame:0,
-  kbd:{gas:false, brake:false, clutch:false, left:false, right:false}, extraF:0, fx:{slide:0, off:0, wall:0, hit:0}, mouse:{gas:0, brake:0, clutch:0}, autoT:0, dnT:[], pumpAt:0,
+  kbd:{gas:false, brake:false, clutch:false, left:false, right:false}, extraF:0, trac:null, spin:false, ws:0, wdist:0, Fx:0, Fb:0, lock:false, tcAct:0, esp:0, fx:{slide:0, off:0, wall:0, hit:0}, mouse:{gas:0, brake:0, clutch:0}, autoT:0, dnT:[], pumpAt:0,
 };
 const eng = () => ENGINES[S.cfg.engine];
 // Wie laut die Knaller je nach Auspuff sind (Serie gedämpft, offene Rennauspuffe laut)
@@ -1086,6 +1137,7 @@ const bangLoud = () => BANG_LOUD[S.cfg.exhaust] ?? 1;
 const gbox = () => { const b = GEARBOXES[S.cfg.gearbox], c = S.cfg.custom; return c && c.box === S.cfg.gearbox ? Object.assign({}, b, {ratios: c.ratios, final: c.final}) : b; };
 const turbo = () => TURBOS[S.cfg.turbo];
 const car = () => CARS[S.cfg.car] || CARS.coupe;
+const chassis = () => Object.assign({dr:'rwd', fs:.4, wd:.52, cg:.5, yi:1, rs:.55, rb:1.06, loose:1}, CHASSIS[S.cfg.car]);
 // Reifen und Aero-Teile; "Ab Werk" = was das Auto serienmässig hat
 function parts(c = S.cfg) {
   const C = car(), gt = !!C.bigWing, pick = (tab, v, def) => v && v !== 'auto' && tab[v] ? v : def;
@@ -1152,9 +1204,16 @@ function physStep(dt) {
   const comb = (S.running && !S.cut && !upCut) ? torqueAt(E, rpm) * thrEff * (1 + S.boost * boostGain()) * modTorque() * (1 - .45 * D.engine) : 0;
   const fric = E.torque * (.035 + rpm * .000018 + (1 - thrEff) * rpm * .00003) * clamp(S.we / 3, 0, 1) * (S.blown ? 6 : 1);
   const starter = S.starting > 0 ? E.torque * .35 * clamp((260 - rpm) / 80, 0, 1) : 0;
-  const Te = comb + starter - fric;
+  let Te = comb + starter - fric;
 
   const G = ratioOf(S.gear);
+  // Traktionskontrolle: Motormoment kappen, sobald die Antriebsräder mehr Kraft wollen, als der Reifen gerade hergibt
+  S.tcAct = 0;
+  // (beim Durchdrehen deutlich darunter, damit die Räder wieder auf Fahrzeugtempo kommen; ESP-Eingriff nimmt zusätzlich Gas weg)
+  if (hasTC() && S.trac && G !== 0 && comb > 0 && S.clutchEng > .3) {
+    const lim = S.trac.d * (S.spin ? .5 : 1) * (1 - .85 * S.esp) * WR / Math.abs(G) + fric;
+    if (comb > lim) { S.tcAct = 1 - Math.max(0, lim) / comb; Te -= comb - Math.max(0, lim); }
+  }
   if (GB.paddle || S.cfg.shiftMode === 'auto') {
     const wheelRpm = Math.abs(G * S.v / WR * RPM);
     const tgt = (G === 0 || !S.running || (S.cfg.shiftMode === 'auto' && S.autoT > .18)) ? 0 : Math.max(smooth(E.idle + 150, E.idle + 1800, rpm), wheelRpm > E.idle + 150 ? 1 : 0);
@@ -1163,28 +1222,56 @@ function physStep(dt) {
     S.clutchEng = clamp((.85 - S.clutch) / .55, 0, 1);
   }
 
-  const Fr = (ROLL + S.brake * BRAKE + S.extraF) * clamp(S.v / .3, -1, 1) + DRAG * S.v * Math.abs(S.v);
-  const I = E.inertia;
-  let Tc = 0;
+  // Reifengrenzen kommen von der 3D-Strecke (S.trac, je nach Last, Untergrund und Kurvenkraft); ohne 3D-Strecke unbegrenzt wie früher.
+  // Bremse mit ABS: höchstens 90 % dessen, was die Reifen gerade längs übertragen können.
+  // Ohne ABS: zu viel Pedal = Räder blockieren, dann bremst nur noch die Gleitreibung und es lässt sich kaum lenken.
+  const want = S.brake * MASS * 9.81 * 1.7;
+  let Fbrk = S.brake * BRAKE;
+  S.lock = false;
+  if (S.trac) {
+    const full = S.trac.b / .9;
+    if (S.cfg.aids === 'aus') { if (want > full * .98 && Math.abs(S.v) > 1) { S.lock = true; Fbrk = full * .8; } else Fbrk = Math.min(want, full); }
+    else Fbrk = Math.min(want, S.trac.b);
+  }
+  const Fr = (ROLL + Fbrk + S.extraF) * clamp(S.v / .3, -1, 1) + DRAG * S.v * Math.abs(S.v);
+  const I = E.inertia, Dd = S.trac ? Math.max(50, S.trac.d) : Infinity;
+  let Tc = 0, Ft = 0;
   if (G !== 0 && S.clutchEng > .001) {
     // Kupplungsmoment, das den Schlupf in diesem Schritt auf null bringt – begrenzt durch die Kupplungskapazität
     const cap = S.clutchEng * (E.torque * (1 + boostGain()) * 1.7 + 40) * (1 - .7 * D.clutch);
-    const slip = S.we - G * S.v / WR;
-    const Treq = (slip / dt + Te / I + G * Fr / (WR * MASS)) / (1 / I + G * G / (WR * WR * MASS));
-    Tc = clamp(Treq, -cap, cap);
-  }
+    if (!S.spin) {
+      // Räder haften: Motor zieht über die Räder das ganze Auto
+      const slip = S.we - G * S.v / WR;
+      const Treq = (slip / dt + Te / I + G * Fr / (WR * MASS)) / (1 / I + G * G / (WR * WR * MASS));
+      Tc = clamp(Treq, -cap, cap);
+      if (Math.abs(Tc * G / WR) > Dd) { S.spin = true; S.ws = 0; }   // mehr Antriebs-/Schleppkraft als Grip: Räder drehen durch bzw. blockieren
+    }
+    if (S.spin) {
+      // Räder drehen durch: der Motor treibt nur noch Räder und Antriebsstrang (WHEEL_M), ans Auto geht die Gleitreibung
+      Ft = Math.sign(S.ws || Tc * G) * Dd * spinGrip();
+      const slip = S.we - G * (S.v + S.ws) / WR;
+      const Treq = (slip / dt + Te / I + G * Ft / (WR * WHEEL_M)) / (1 / I + G * G / (WR * WR * WHEEL_M));
+      Tc = clamp(Treq, -cap, cap);
+    }
+  } else if (S.spin) Ft = Math.sign(S.ws) * Dd * spinGrip();
   // Kupplungsverschleiss durch Reibleistung
-  const slipP = G !== 0 ? Math.abs(Tc * (S.we - G * S.v / WR)) : 0;
+  const slipP = G !== 0 ? Math.abs(Tc * (S.we - G * (S.v + S.ws) / WR)) : 0;
   D.clutch = Math.min(1, D.clutch + dt * slipP * 3.3e-7);
   S.slipN = clamp(slipP / 60000, 0, 1);
   S.we = Math.max(0, S.we + dt * (Te - Tc) / I);
-  S.v += dt * (Tc * G / WR - Fr) / MASS;
+  if (S.spin) {
+    const dv = dt * (Ft - Fr) / MASS;
+    S.ws += dt * (Tc * G / WR - Ft) / WHEEL_M - dv;
+    S.v += dv;
+    if (S.ws * Ft <= 0) { S.spin = false; S.ws = 0; }   // Räder wieder so schnell wie das Auto: sie haften
+  } else S.v += dt * (Tc * G / WR - Fr) / MASS;
+  S.Fx = S.spin ? Ft : Tc * G / WR; S.Fb = Fbrk;
   if (S.brake > .05 && Math.abs(S.v) < .01 && Math.abs(Tc) < 1) S.v = 0;
-  S.dist += S.v * dt;
+  S.dist += S.v * dt; S.wdist += (S.v + S.ws) * dt;
 
   // Seq/DSG: Drehzahl während des Schaltvorgangs an den Zielgang anpassen (Zwischengas / Drehzahlabfall)
   if (S.shift && S.running) {
-    const target = Math.abs(ratioOf(S.shift.to) * S.v / WR);
+    const target = Math.abs(ratioOf(S.shift.to) * (S.v + S.ws) / WR);
     if (target * RPM > E.idle * .9) S.we += (target - S.we) * Math.min(1, dt * 35);
   }
 
@@ -1325,7 +1412,8 @@ function autoShift(dt) {
   const go = to => { S.autoT = .35; S.clutchEng = 0; if (GB.type === 'h') hSetGear(to); else shiftDir(to > S.gear ? 1 : -1); };
   if (S.gear === 0) { if (S.throttle > .08 && kmh > -2) go(1); return; }
   const up = E.red - (S.throttle > .85 ? 350 : 900 + (1 - S.throttle) * 1500);
-  if (S.gear < max && rpm > up && S.throttle > .04) { go(S.gear + 1); return; }
+  const rpmV = Math.abs(ratioOf(S.gear) * S.v / WR) * RPM;   // was die Drehzahl ohne durchdrehende Räder wäre
+  if (S.gear < max && Math.min(rpm, rpmV + 400) > up && S.throttle > .04) { go(S.gear + 1); return; }
   const dn = E.idle + 700 + (S.throttle > .9 ? 1600 : 0);
   if (S.gear > 1 && rpm < dn) {
     const to = S.gear - 1, rpmAfter = Math.abs(ratioOf(to) * S.v / WR) * RPM;
@@ -1511,9 +1599,10 @@ const FXS = {
     const on3d = typeof W3 !== 'undefined' && W3 && S.cfg.scene3d === '3d';   // nur auf der 3D-Strecke
     this.out.gain.setTargetAtTime(on3d ? S.cfg.vol * road * (innen ? .6 : 1) : 0, this.ctx.currentTime, .1);
     // Quietschen setzt am Haftungslimit ein, wird mit dem Rutschen lauter und etwas höher
-    const sq = v > 4 ? Math.min(1, F.slide / 6) : 0;
-    this.set('squeal', .5 * sq * (F.off ? .3 : 1), .9 + .25 * sq);
-    this.set('grass', F.off ? .9 * Math.min(1, v / 25) : 0, .7 + Math.min(.6, v / 60));
+    // F.off = Anteil der Räder auf Wiese/Kies (0–1), F.gravel = Anteil auf Kies; durchdrehende Räder quietschen auch im Stand
+    const sq = v > 4 || S.spin ? Math.min(1, F.slide / 6) : 0, off = Math.min(1, F.off), gr = F.gravel || 0;
+    this.set('squeal', .5 * sq * (1 - .7 * off), .9 + .25 * sq);
+    this.set('grass', off ? (.9 + .5 * gr) * off * Math.min(1, (v + (S.spin ? Math.abs(S.ws) : 0)) / 25) : 0, .7 - .2 * gr + Math.min(.6, v / 60));
     this.set('scrape', F.wall ? Math.min(1.2, .3 + v / 30) : 0, .85 + Math.min(.4, v / 80));
     this.set('wind', .55 * Math.min(1, (v / 70) ** 2), .8 + Math.min(.5, v / 120));
     if (F.hit > 3 && this.crash.length && this.ctx.currentTime - this.lastHit > .35) {
@@ -2157,7 +2246,9 @@ function updateSpecs() {
     const tq = torqueAt(E, r) * (1 + b * bg) * modTorque();
     ps = Math.max(ps, tq * r / 9549 * 1.36); nm = Math.max(nm, tq);
   }
-  document.getElementById('specs').textContent = `≈ ${Math.round(ps)} PS · ${Math.round(nm)} Nm · ${car().mass} kg · Begrenzer ${E.red} U/min`;
+  const CH = chassis(), wf = Math.round(CH.wd * 100);
+  document.getElementById('specs').textContent = `≈ ${Math.round(ps)} PS · ${Math.round(nm)} Nm · ${car().mass} kg · Begrenzer ${E.red} U/min · ` +
+    `${DRIVE_NAMES[CH.dr]} · Gewicht ${wf}/${100 - wf} vorne/hinten`;
   const A = aero(), TY = tyre(), q = .6 * (200 / 3.6) ** 2, dF = q * (A.clF + A.floorF), dR = q * (A.clR + A.floorR), tot = dF + dR;
   document.getElementById('aeroInfo').textContent = `Grip ${TY.mu.toFixed(2)} · Abtrieb bei 200 km/h ≈ ${Math.round(tot / 9.81)} kg` +
     (tot > 1 ? ` (${Math.round(dF / tot * 100)} % vorne)` : '') + (A.cdX ? ` · Luftwiderstand ${A.cdX > 0 ? '+' : ''}${A.cdX.toFixed(3)}` : '') + (A.ge ? ' · Ground-Effect: neben der Strecke fast weg' : '') + (tot > 300 && dF / tot > .45 ? ' · Achtung: viel Abtrieb vorne → das Heck bricht leicht aus' : '');
@@ -2372,7 +2463,7 @@ function boot() {
     if (!SQ.drag) SQ.y *= Math.exp(-dt * 12);
     PAD.l = Math.max(0, PAD.l - dt * 4); PAD.r = Math.max(0, PAD.r - dt * 4);
 
-    if (W3 && S.cfg.scene3d === '3d') W3.frame(dt); else { S.extraF = 0; S.fx.slide = S.fx.off = S.fx.wall = 0; drawCar(dt, t); }
+    if (W3 && S.cfg.scene3d === '3d') W3.frame(dt); else { S.extraF = 0; S.trac = null; S.spin = false; S.ws = 0; S.esp = 0; S.lock = false; S.fx.slide = S.fx.off = S.fx.wall = 0; drawCar(dt, t); }
     drawDash(t); drawShifter(); drawDamage();
     for (const el of pedals) {
       const v = el.dataset.p === 'gas' ? S.throttle : el.dataset.p === 'brake' ? S.brake : (GB.paddle ? 1 - S.clutchEng : S.clutch);
