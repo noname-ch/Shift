@@ -12,7 +12,7 @@ const W3 = (() => {
   let R, scene, cam, sun, wrap, N = 0, STEP = 3, PX, PZ, RX, RZ, CURV, started = false;
   const st = {x:0, z:0, h:0, i:-1, lat:0, off:false, latA:0, acc:0, lastV:0, camH:0, shake:0, steer:0, touch:0, vy:0, r:0, lookY:0, lookP:0, zoom:1, drag:null};
   const lap = {t:0, run:false, start:0, cp:0, valid:true, last:null, best:null, prev:-1, n:0};
-  const car3 = {key:'', g:null, body:null, upper:null, cockpit:null, wheels:[], tail:null, flames:[], eye:new T.Vector3(), bumper:new T.Vector3(), info:null, sw:null};
+  const car3 = {key:'', g:null, body:null, upper:null, cockpit:null, wheels:[], tail:null, flames:[], eye:new T.Vector3(), bumper:new T.Vector3(), info:null, sw:null, model:null, own:[]};
   let rng = 1;
   const rand = () => { rng = (rng * 16807) % 2147483647; return (rng - 1) / 2147483646; };
   const hud = {};
@@ -235,12 +235,15 @@ const W3 = (() => {
 
   // ---------------- Auto ----------------
   const carKey = () => { const P = parts(); return [S.cfg.car, S.cfg.color, P.tyre, P.wing, P.splitter, P.floor].join('|'); };
-  function disposeTree(o) { o.traverse(m => { if (m.geometry) m.geometry.dispose(); const ms = Array.isArray(m.material) ? m.material : m.material ? [m.material] : []; for (const x of ms) { if (x.map) x.map.dispose(); x.dispose(); } }); }
+  // Teile aus dem Modell-Cache (userData.shared) teilen Geometrie und Texturen mit dem geladenen glTF und werden nicht freigegeben
+  function disposeTree(o) { if (o.userData.shared) return; if (o.geometry) o.geometry.dispose(); const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const x of ms) { if (x.map) x.map.dispose(); x.dispose(); } for (const c of o.children) disposeTree(c); }
   function buildCar() {
     const C = car(), col = S.cfg.color || '#c8321a', key = carKey(), P = parts();
     if (key === car3.key) return;
     car3.key = key;
     if (car3.g) { scene.remove(car3.g); disposeTree(car3.g); }
+    for (const x of car3.own) x.dispose();
+    car3.own = []; car3.model = null;
     const L = C.livery, pts = pathPts(C.path), win = pathPts(C.win);
     const front = Math.max(...pts.map(p => p[0])), back = Math.min(...pts.map(p => p[0])), top = Math.max(...pts.map(p => p[1]));
     const belt = Math.min(...win.map(p => p[1]));
@@ -377,6 +380,65 @@ const W3 = (() => {
     car3.g = g; car3.body = body; car3.upper = upper; car3.cockpit = ck; car3.tail = tailM;
     car3.info = {W: W * SC, len: (front - back) * SC, base: 2 * C.wx * SC, r, back: back * SC, belt, top};
     scene.add(g);
+    applyCam();
+    // Sketchfab-Modell (models.js): bis es geladen ist, fährt das extrudierte Auto
+    const M = gltf && typeof CAR_MODELS !== 'undefined' && CAR_MODELS[S.cfg.car];
+    if (M) loadModel(M).then(gl => { if (car3.key === key) fitModel(gl.scene, M, col); }, e => { if (!M.failed) { M.failed = true; console.warn('3D-Modell nicht geladen:', M.file, e); } });
+  }
+
+  // ---------------- Sketchfab-Modelle ----------------
+  const gltf = T.GLTFLoader ? new T.GLTFLoader() : null, models = {};
+  const WHEEL = /wheel|tire|tyre|(^|[^t])rim|reifen|felge/i, NOT_WHEEL = /steer|lenk|spare|arch|well|caliper|brems|fender|cover/i;
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail))); }
+  function fitModel(src, M, col) {
+    const I = car3.info, g = car3.g, body = car3.body, m = src.clone(true);
+    m.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+    if (M.paint) {
+      const re = new RegExp(M.paint, 'i');
+      m.traverse(o => {
+        if (!o.isMesh) return;
+        const ms = (Array.isArray(o.material) ? o.material : [o.material]).map(x => { if (!re.test(x.name) && !re.test(o.name)) return x; const c = x.clone(); c.color.set(col); car3.own.push(c); return c; });
+        o.material = Array.isArray(o.material) ? ms : ms[0];
+      });
+    }
+    // Ausrichten in Fahrzeugkoordinaten (Meter, Front nach +X), dafür Auto und Karosserie kurz in den Ursprung
+    const saved = [g.position.clone(), g.rotation.clone(), body.position.clone(), body.rotation.clone()];
+    g.position.set(0, 0, 0); g.rotation.set(0, 0, 0); body.position.set(0, 0, 0); body.rotation.set(0, 0, 0);
+    const turn = new T.Group(), fit = new T.Group(); turn.add(m);
+    const box = new T.Box3().setFromObject(turn), sz = box.getSize(new T.Vector3());   // noch ohne Eltern: Modelleinheiten
+    turn.rotation.y = (M.rot ?? (sz.z > sz.x ? 90 : 0)) * Math.PI / 180;
+    turn.updateMatrixWorld(true); box.setFromObject(turn); box.getSize(sz);
+    const s = I.len / sz.x, c = box.getCenter(new T.Vector3());
+    fit.add(turn); body.add(fit);
+    fit.scale.setScalar(s / SC); fit.position.set((I.back + I.len / 2 - c.x * s) / SC, -box.min.y * s / SC, -c.z * s / SC);
+    g.updateMatrixWorld(true);
+    // Räder nach Namen suchen, pro Ecke sammeln und an Drehpunkte hängen (wie die eigenen Räder: in g, ohne Karosserie-Nicken)
+    const parts = [], walk = (o, hit) => {
+      const n = o.name || '';
+      if (NOT_WHEEL.test(n)) return;
+      hit = hit || WHEEL.test(n);
+      if (hit) { const b = new T.Box3().setFromObject(o), d = b.getSize(new T.Vector3()); if (!b.isEmpty() && d.x < I.len * .4 && d.z < I.W * .6) { parts.push([o, b]); return; } }
+      for (const k of o.children) walk(k, hit);
+    };
+    walk(m, false);
+    const mid = I.back + I.len / 2, corners = {};
+    for (const [o, b] of parts) { const p = b.getCenter(new T.Vector3()), q = (p.x > mid ? 'f' : 'r') + (p.z > 0 ? 'l' : 'r'); (corners[q] = corners[q] || {box: new T.Box3(), parts: []}).box.union(b); corners[q].parts.push(o); }
+    for (const w of car3.wheels) w.piv.visible = false;
+    if (Object.keys(corners).length === 4) {
+      car3.wheels = []; let rs = 0;
+      for (const [q, k] of Object.entries(corners)) {
+        const piv = new T.Group(), spin = new T.Group(); k.box.getCenter(piv.position); piv.add(spin); g.add(piv); g.updateMatrixWorld(true);
+        for (const o of k.parts) { spin.attach(o); o.userData.shared = true; }
+        rs += k.box.getSize(new T.Vector3()).y / 8;
+        car3.wheels.push({piv, spin, front: q[0] === 'f'});
+      }
+      I.r = rs;
+    }
+    [g.position, g.rotation, body.position, body.rotation].forEach((v, i) => v.copy(saved[i]));
+    m.userData.shared = true;
+    for (const o of body.children) if (o !== fit && o !== car3.cockpit && !car3.flames.includes(o)) o.visible = false;
+    if (M.eye) car3.eye.set(M.eye[0] / SC, M.eye[1] / SC, M.eye[2] / SC);
+    car3.model = fit;
     applyCam();
   }
 
@@ -520,7 +582,7 @@ const W3 = (() => {
   const qLook = new T.Quaternion().setFromEuler(new T.Euler(-.06, -Math.PI / 2, 0, 'YXZ')), tmpQ = new T.Quaternion(), tmpV = new T.Vector3(), lookQ = new T.Quaternion(), lookE = new T.Euler();
   function applyCam() {
     const m = S.cfg.cam;
-    if (car3.cockpit) { car3.cockpit.visible = m === 'cockpit'; car3.upper.visible = m !== 'cockpit'; }
+    if (car3.cockpit) { car3.cockpit.visible = m === 'cockpit' && !car3.model; car3.upper.visible = m !== 'cockpit' && !car3.model; }
     cam.near = m === 'chase' ? .2 : .05; cam.updateProjectionMatrix();
   }
   function camStep(dt) {

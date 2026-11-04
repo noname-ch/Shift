@@ -229,11 +229,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div id="toast"></div>
 
 <!-- ?v= bei jeder Änderung an einer .js-Datei hochzählen, sonst mischt der Browser alte und neue Dateien aus dem Cache -->
-<script src="assets.js?v=2026-11-02d"></script>
-<script src="illus.js?v=2026-11-02d"></script>
-<script src="three.min.js?v=2026-11-02d"></script>
-<script src="elsounds.js?v=2026-11-02d"></script>
-<script src="world3d.js?v=2026-11-02d"></script>
+<script src="assets.js?v=2026-11-04a"></script>
+<script src="illus.js?v=2026-11-04a"></script>
+<script src="three.min.js?v=2026-11-04a"></script>
+<script src="GLTFLoader.js?v=2026-11-04a"></script>
+<script src="models.js?v=2026-11-04a"></script>
+<script src="elsounds.js?v=2026-11-04a"></script>
+<script src="world3d.js?v=2026-11-04a"></script>
 <script>
 // Shims, damit der Audio-Kern notfalls auch im Hauptthread läuft (ohne eval)
 window.sampleRate = 48000;
@@ -2276,7 +2278,8 @@ function boot() {
     c.textContent = (typeof CAR_IMG !== 'undefined' ? `Fotos: Wikimedia Commons (Creative Commons, ${Object.keys(CAR_IMG).length} Autos, Cartoon-Filter). ` : '') +
       (n ? `Motorsound: echte Aufnahmen von freesound.org (Creative Commons) für ${n} Motoren, Fehlzündungen ebenfalls echte Aufnahmen. Details in assets.js.` : '') +
       (typeof CLACKS !== 'undefined' ? ' Schaltknack: echte Aufnahme eines Porsche 997 GT3 (Wikimedia Commons, CC BY-SA 3.0).' : '') +
-      (typeof EL_FX !== 'undefined' ? ' 3D-Fahrgeräusche (Reifen, Gras, Leitplanke, Wind) und KI-Motorsound: ElevenLabs Sound Effects (KI-generiert).' : '');
+      (typeof EL_FX !== 'undefined' ? ' 3D-Fahrgeräusche (Reifen, Gras, Leitplanke, Wind) und KI-Motorsound: ElevenLabs Sound Effects (KI-generiert).' : '') +
+      (typeof CAR_MODELS !== 'undefined' ? ' 3D-Modelle (Sketchfab): ' + Object.values(CAR_MODELS).map(m => `„${m.title}“ von ${m.author} (${m.license}, ${m.url})`).join('; ') + '.' : '');
   }
 
   document.getElementById('startBtn').addEventListener('click', e => { toggleEngine(); e.currentTarget.blur(); });
