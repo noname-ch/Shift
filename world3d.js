@@ -388,8 +388,11 @@ const W3 = (() => {
 
   // ---------------- Sketchfab-Modelle ----------------
   const gltf = T.GLTFLoader ? new T.GLTFLoader() : null, models = {};
-  const WHEEL = /wheel|tire|tyre|(^|[^t])rim|reifen|felge/i, NOT_WHEEL = /steer|lenk|spare|arch|well|caliper|brems|fender|cover/i;
-  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail))); }
+  const WHEEL = /wheel|tire|tyre|(^|[^t])rim|reifen|felge/i, NOT_WHEEL = /steer|lenk|spare|arch|well|cal+ip|brems|fender|cover/i, GLASS = /glass|glas|window|scheibe|light|lamp/i;
+  // Sketchfab-Exporte markieren oft alles als transparent (alphaMode BLEND); dann entscheidet die Sortierung, ob der Innenraum durch die Karosserie scheint.
+  // Ausser Glas und Lichtern daher deckend zeichnen, Aussparungen (Gitter) bleiben über alphaTest erhalten.
+  const solidify = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.transparent && x.opacity >= 1 && !GLASS.test(x.name)) { x.transparent = false; x.alphaTest = .5; x.needsUpdate = true; } }); return gl; };
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(solidify)); }
   function fitModel(src, M, col) {
     const I = car3.info, g = car3.g, body = car3.body, m = src.clone(true);
     m.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
@@ -417,7 +420,9 @@ const W3 = (() => {
       const n = o.name || '';
       if (NOT_WHEEL.test(n)) return;
       hit = hit || WHEEL.test(n);
-      if (hit) { const b = new T.Box3().setFromObject(o), d = b.getSize(new T.Vector3()); if (!b.isEmpty() && d.x < I.len * .4 && d.z < I.W * .6) { parts.push([o, b]); return; } }
+      // Radbaugruppen mit Bremssattel o. ä. aufteilen, damit nur das Rad dreht
+      let fixed = false; o.traverse(k => { if (k !== o && NOT_WHEEL.test(k.name || '')) fixed = true; });
+      if (hit && !fixed) { const b = new T.Box3().setFromObject(o), d = b.getSize(new T.Vector3()); if (!b.isEmpty() && d.x < I.len * .4 && d.z < I.W * .6) { parts.push([o, b]); return; } }
       for (const k of o.children) walk(k, hit);
     };
     walk(m, false);
