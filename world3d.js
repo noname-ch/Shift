@@ -431,7 +431,9 @@ const W3 = (() => {
     return gl;
   };
   // Metallic-Lacke der Modelle brauchen etwas zum Spiegeln, sonst werden sie fast schwarz: kleine Umgebung aus Himmel, Boden und zwei Lichtflächen
+  // ENV_K: Stärke der Spiegelung – voll (1) wirken die Lacke ausgewaschen weiss, ohne fast schwarz
   let envTex = null;
+  const ENV_K = .45;
   const modelEnv = () => {
     if (envTex) return envTex;
     const es = new T.Scene(), sg = new T.SphereGeometry(50, 32, 16), sky = new T.Color('#cfdbe6'), ground = new T.Color('#4b5546'), cols = [];
@@ -442,7 +444,7 @@ const W3 = (() => {
     const pm = new T.PMREMGenerator(R); envTex = pm.fromScene(es, .04).texture; pm.dispose();
     return envTex;
   };
-  const addEnv = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.isMeshStandardMaterial && !x.envMap) { x.envMap = modelEnv(); x.needsUpdate = true; } }); return gl; };
+  const addEnv = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.isMeshStandardMaterial && !x.envMap) { x.envMap = modelEnv(); x.envMapIntensity = ENV_K; x.needsUpdate = true; } }); return gl; };
   function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => addEnv(splitWheels(solidify(gl, M))))); }
   // Kontur des eingepassten Modells mit Strahlen vermessen (Körper-Einheiten), wo nichts getroffen wird, gilt die Silhouette
   function measure(fit, sil, W) {

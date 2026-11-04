@@ -22,6 +22,6 @@ const CAR_MODELS = {
   mcl720: {file: 'models/mcl720.glb', title: '2019 McLaren 720S GT3', author: 'Ddiaz Design', license: 'CC BY 4.0',
            url: 'https://sketchfab.com/3d-models/2019-mclaren-720s-gt3-d5600ac3eed54b808ad3c154ca2c8f69'},
   // mit Blender verkleinert (Decimate 0.5, Texturen 1024 px WebP), 40 → 17 MB
-  f296:  {file: 'models/f296.glb', title: 'Ferrari 296 GT3', author: 'MattDoesBlender', license: 'CC BY 4.0',
+  f296:  {file: 'models/f296.glb', rot: 53, title: 'Ferrari 296 GT3', author: 'MattDoesBlender', license: 'CC BY 4.0',
           url: 'https://sketchfab.com/3d-models/ferrari-296-gt3-e6760847bb2d4b579d43cf916f348526'},
 };
