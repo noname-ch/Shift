@@ -430,7 +430,20 @@ const W3 = (() => {
     }
     return gl;
   };
-  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => splitWheels(solidify(gl, M)))); }
+  // Metallic-Lacke der Modelle brauchen etwas zum Spiegeln, sonst werden sie fast schwarz: kleine Umgebung aus Himmel, Boden und zwei Lichtflächen
+  let envTex = null;
+  const modelEnv = () => {
+    if (envTex) return envTex;
+    const es = new T.Scene(), sg = new T.SphereGeometry(50, 32, 16), sky = new T.Color('#cfdbe6'), ground = new T.Color('#4b5546'), cols = [];
+    for (let i = 0, p = sg.attributes.position; i < p.count; i++) { const t = T.MathUtils.smoothstep(p.getY(i), -6, 6); cols.push(...ground.clone().lerp(sky, t).toArray()); }
+    sg.setAttribute('color', new T.Float32BufferAttribute(cols, 3));
+    es.add(new T.Mesh(sg, new T.MeshBasicMaterial({side: T.BackSide, vertexColors: true})));
+    for (const [x, z] of [[18, 10], [-14, -16]]) { const l = new T.Mesh(new T.PlaneGeometry(22, 8), new T.MeshBasicMaterial({color: new T.Color(3, 3, 3), side: T.DoubleSide})); l.position.set(x, 30, z); l.lookAt(0, 0, 0); es.add(l); }
+    const pm = new T.PMREMGenerator(R); envTex = pm.fromScene(es, .04).texture; pm.dispose();
+    return envTex;
+  };
+  const addEnv = gl => { gl.scene.traverse(o => { for (const x of o.isMesh ? [].concat(o.material) : []) if (x.isMeshStandardMaterial && !x.envMap) { x.envMap = modelEnv(); x.needsUpdate = true; } }); return gl; };
+  function loadModel(M) { return models[M.file] || (models[M.file] = new Promise((ok, fail) => gltf.load(M.file, ok, undefined, fail)).then(gl => addEnv(splitWheels(solidify(gl, M))))); }
   // Kontur des eingepassten Modells mit Strahlen vermessen (Körper-Einheiten), wo nichts getroffen wird, gilt die Silhouette
   function measure(fit, sil, W) {
     const body = fit.parent, rc = new T.Raycaster(), o = new T.Vector3(), d = new T.Vector3();
